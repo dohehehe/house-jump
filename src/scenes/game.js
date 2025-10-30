@@ -14,7 +14,7 @@ export default class Game extends Phaser.Scene {
 
     // 플레이어 관련 상수
     PLAYER_SCALE = 0.5
-    PLAYER_JUMP_VELOCITY = -GAME_HEIGHT / 2;
+    PLAYER_JUMP_VELOCITY = -450;
     PLAYER_MOVE_VELOCITY_LEFT = -GAME_WIDTH / 2;
     PLAYER_MOVE_VELOCITY_RIGHT = GAME_WIDTH / 2;
     CORRECT_ANSWER_BOOST = 2 // 정답 시 추가 점프력 배수 (더 높이 뛰기)
@@ -22,6 +22,7 @@ export default class Game extends Phaser.Scene {
     // 플랫폼 관련 상수
     PLATFORM_SCALE = 0.5
     PLATFORM_SPACING_HEIGHT = 170 //플랫폼 높이
+    PLATFORM_GAP_TWEAK = 20 // 간격을 조금 더 가깝게 만드는 보정치
     PLATFORM_X_MIN = GAME_WIDTH / 10 //플랫폼 X 최소값
     PLATFORM_X_MAX = GAME_WIDTH * 9 / 10 //플랫폼 X 최대값
 
@@ -35,7 +36,7 @@ export default class Game extends Phaser.Scene {
     QUIZ_PLATFORM_RIGHT_X = GAME_WIDTH - (GAME_WIDTH / 5) //퀴즈 플랫폼 우측 위치(게임 너비의 3/4)
     QUIZ_PLATFORM_Y_OFFSET = GAME_HEIGHT / 4 //퀴즈 플랫폼 위치(플레이어 높이의 1/4)
     QUIZ_ZONE_PADDING = this.PLATFORM_SPACING_HEIGHT//퀴즈 구역 패딩(플랫폼 간격과 동일)
-    QUIZ_INTERVAL = GAME_HEIGHT   //다음 퀴즈까지의 간격(플레이어 높이의 2배)
+    QUIZ_INTERVAL = GAME_HEIGHT * 1.5   //다음 퀴즈까지의 간격(플레이어 높이의 2배)
 
     // 구름 관련 상수
     CLOUD_COUNT = 5
@@ -198,7 +199,7 @@ export default class Game extends Phaser.Scene {
         // overlap은 제거하고 collider만 사용
 
         // 질문 텍스트 UI(초기에는 숨김)
-        const qStyle = { color: '#fff', fontSize: this.UI_QUESTION_FONT_SIZE, fontStyle: 'bold', backgroundColor: '#00000088', padding: { x: 8, y: 6 } }
+        const qStyle = { color: '#fff', fontSize: this.UI_QUESTION_FONT_SIZE, textAlign: 'center', fontStyle: 'bold', backgroundColor: '#00000088', padding: { x: 8, y: 6 } }
         this.questionText = this.add.text(this.GAME_CENTER_X, 48, '', qStyle).setScrollFactor(0).setOrigin(0.5, 0.5).setDepth(2)
         this.questionText.setVisible(false)
     }
@@ -222,15 +223,20 @@ export default class Game extends Phaser.Scene {
             const platform = child
 
             const scrollY = this.cameras.main.scrollY
-            const recycleThreshold = scrollY + this.scale.height + 50
+            const recycleThreshold = scrollY + this.scale.height
             if (platform.y >= recycleThreshold) {
                 const topMost = this.findTopMostPlatform()
                 const spacing = this.PLATFORM_SPACING_HEIGHT
-                let nextY = topMost.y - spacing
-                // Avoid spawning inside quiz zone if active
+                const platformHalfHeight = (platform.body && (platform.body.halfHeight || platform.body.height / 2)) || (platform.displayHeight / 2)
+                const topMostHalfHeight = (topMost.body && (topMost.body.halfHeight || topMost.body.height / 2)) || (topMost.displayHeight / 2)
+                let nextY = topMost.y - topMostHalfHeight - spacing - platformHalfHeight + this.PLATFORM_GAP_TWEAK
+                // Avoid spawning inside quiz zone if active (use edge-based spacing to keep consistency)
                 if (this.isQuizActive && this.quizZoneTop !== null && this.quizZoneBottom !== null) {
                     if (nextY <= this.quizZoneBottom && nextY >= this.quizZoneTop) {
-                        nextY = this.quizZoneTop - spacing
+                        const quizCenterY = this.quizCenterY ?? ((this.quizZoneTop + this.quizZoneBottom) / 2)
+                        const quizHalfHeight = this.quizPlatformHalfHeight ?? 0
+                        const quizTopEdgeY = quizCenterY - quizHalfHeight
+                        nextY = quizTopEdgeY - spacing - platformHalfHeight + this.PLATFORM_GAP_TWEAK
                     }
                 }
                 platform.y = nextY
@@ -308,7 +314,7 @@ export default class Game extends Phaser.Scene {
 
         // 질문 표시
         const quiz = this.quizzes[this.currentQuizIndex]
-        this.questionText.setText(`[${this.currentQuizIndex + 1}/10] ${quiz.question}\nA: ${quiz.a}    B: ${quiz.b}`)
+        this.questionText.setText(`[${this.currentQuizIndex + 1}/10] \n ${quiz.question}\nA: ${quiz.a}    B: ${quiz.b}`)
         this.questionText.setVisible(true)
 
         // 카메라 뷰 근처에 O/X 퀴즈 플랫폼 생성
@@ -316,16 +322,34 @@ export default class Game extends Phaser.Scene {
 
         // 퀴즈 구역 예약: 해당 영역의 기존 플랫폼은 위로 밀어냄
         if (this.quizZoneTop !== null && this.quizZoneBottom !== null) {
+            // 퀴즈 존에 걸친 기존 플랫폼들을 수집해 위로 겹치지 않게 스택으로 재배치
+            const toPush = []
             this.platforms.children.iterate(child => {
                 /** @type {Phaser.Physics.Arcade.Sprite} */
                 const platform = child
                 if (platform.y <= this.quizZoneBottom && platform.y >= this.quizZoneTop) {
-                    // 퀴즈 플랫폼 위에 정확히 PLATFORM_SPACING_HEIGHT 간격으로 배치
-                    platform.y = this.quizZoneTop - this.PLATFORM_SPACING_HEIGHT
-                    platform.x = Phaser.Math.Between(this.PLATFORM_X_MIN, this.PLATFORM_X_MAX)
-                    platform.body.updateFromGameObject()
+                    toPush.push(platform)
                 }
             })
+
+            if (toPush.length > 0) {
+                // 아래에서 위 순으로 정렬(퀴즈 존 근처부터 차곡차곡 쌓기)
+                toPush.sort((a, b) => b.y - a.y)
+
+                const quizCenterY = this.quizCenterY ?? ((this.quizZoneTop + this.quizZoneBottom) / 2)
+                const quizHalfHeight = this.quizPlatformHalfHeight ?? 0
+                let currentTopEdgeY = quizCenterY - quizHalfHeight
+
+                for (const platform of toPush) {
+                    const platformHalfHeight = (platform.body && (platform.body.halfHeight || platform.body.height / 2)) || (platform.displayHeight / 2)
+                    const targetY = currentTopEdgeY - this.PLATFORM_SPACING_HEIGHT - platformHalfHeight + this.PLATFORM_GAP_TWEAK
+                    platform.y = targetY
+                    platform.x = Phaser.Math.Between(this.PLATFORM_X_MIN, this.PLATFORM_X_MAX)
+                    platform.body.updateFromGameObject()
+                    // 다음 스택의 기준: 방금 배치한 플랫폼의 상단 모서리
+                    currentTopEdgeY = targetY - platformHalfHeight
+                }
+            }
         }
     }
 
@@ -385,6 +409,10 @@ export default class Game extends Phaser.Scene {
         bPlatform.setDepth(0) // 캐릭터보다 뒤에 배치
         bPlatform.body.updateFromGameObject()
 
+        // 퀴즈 플랫폼의 중심과 반높이 저장 (양쪽 플랫폼은 동일 스케일/텍스처 가정)
+        this.quizCenterY = y
+        this.quizPlatformHalfHeight = (aPlatform.body && (aPlatform.body.halfHeight || aPlatform.body.height / 2)) || (aPlatform.displayHeight / 2)
+
         const labelStyle = { color: '#000', fontSize: this.UI_LABEL_FONT_SIZE, fontStyle: 'bold', backgroundColor: '#ffffffbb', padding: { x: 4, y: 2 } }
         const aLabel = this.add.text(aPlatform.x, aPlatform.y - 40, 'A', labelStyle).setOrigin(0.5).setDepth(2)
         const bLabel = this.add.text(bPlatform.x, bPlatform.y - 40, 'B', labelStyle).setOrigin(0.5).setDepth(2)
@@ -394,7 +422,7 @@ export default class Game extends Phaser.Scene {
         // // 퀴즈 구역 범위 정의(일반 플랫폼 스폰 금지)
         const padding = this.QUIZ_ZONE_PADDING
         this.quizZoneTop = y - padding
-        this.quizZoneBottom = y + padding - 100 // include neutral area
+        this.quizZoneBottom = y + padding // include neutral area
     }
 
     /**
