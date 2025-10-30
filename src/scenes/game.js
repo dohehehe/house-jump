@@ -150,6 +150,10 @@ export default class Game extends Phaser.Scene {
 
         //일반 플랫폼 생성
         this.platforms = this.physics.add.staticGroup()
+        // 코인 그룹은 플랫폼 위 스폰에 사용되므로 루프 전에 생성
+        this.carrots = this.physics.add.group({
+            classType: Carrot
+        })
         for (let i = 0; i < 5; i++) {
             const x = Phaser.Math.Between(this.PLATFORM_X_MIN, this.PLATFORM_X_MAX)
             const y = this.PLATFORM_SPACING_HEIGHT * i;
@@ -162,6 +166,11 @@ export default class Game extends Phaser.Scene {
             /** @type {Phaser.Physics.Arcade.StaticBody} */
             const body = platform.body
             body.updateFromGameObject()
+
+            // 초기 생성 시 일정 확률로 코인 생성
+            if (Phaser.Math.FloatBetween(0, 1) < 0.35) {
+                this.addCarrotAbove(platform)
+            }
         }
 
         // 캐릭터 생성 (바닥 플랫폼 위에서 시작)
@@ -178,10 +187,6 @@ export default class Game extends Phaser.Scene {
         // set the horizontal dead zone to 1.5x game width
         this.cameras.main.setDeadzone(this.scale.width * this.CAMERA_DEADZONE_MULTIPLIER)
         this.cameras.main.setFollowOffset(0, this.CAMERA_FOLLOW_OFFSET_Y)
-
-        this.carrots = this.physics.add.group({
-            classType: Carrot
-        })
 
         this.physics.add.collider(this.platforms, this.carrots)
 
@@ -276,6 +281,11 @@ export default class Game extends Phaser.Scene {
                 platform.y = nextY
                 platform.x = Phaser.Math.Between(this.PLATFORM_X_MIN, this.PLATFORM_X_MAX)
                 platform.body.updateFromGameObject()
+
+                // 재활용 시에도 일정 확률로 코인 생성
+                if (Phaser.Math.FloatBetween(0, 1) < 0.4) {
+                    this.addCarrotAbove(platform)
+                }
             }
         })
 
@@ -553,7 +563,7 @@ export default class Game extends Phaser.Scene {
         const y = sprite.y - sprite.displayHeight;
 
         /** @type {Phaser.Physics.Arcade.Sprite} */
-        const carrot = this.carrots.get(sprite.x, y, 'carrot')
+        const carrot = this.carrots.get(sprite.x, y, 'coin')
 
         carrot.setActive(true)
         carrot.setVisible(true)
@@ -581,7 +591,7 @@ export default class Game extends Phaser.Scene {
 
         this.carrotCollected++
 
-        this.sound.play('collect')
+        // this.sound.play('collect')
 
         this.carrotsCollectedText.text = `Coins: ${this.carrotCollected}`
     }
