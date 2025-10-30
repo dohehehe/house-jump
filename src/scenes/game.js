@@ -51,7 +51,7 @@ export default class Game extends Phaser.Scene {
 
     // UI 관련 상수
     UI_FONT_SIZE = 24
-    UI_QUESTION_FONT_SIZE = 20
+    UI_QUESTION_FONT_SIZE = 35
     UI_LABEL_FONT_SIZE = 18
 
 
