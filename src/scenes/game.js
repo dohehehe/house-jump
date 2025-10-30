@@ -51,8 +51,8 @@ export default class Game extends Phaser.Scene {
 
     // UI 관련 상수
     UI_FONT_SIZE = 24
-    UI_QUESTION_FONT_SIZE = 18
-    UI_LABEL_FONT_SIZE = 24
+    UI_QUESTION_FONT_SIZE = 20
+    UI_LABEL_FONT_SIZE = 18
 
 
 
@@ -356,9 +356,9 @@ export default class Game extends Phaser.Scene {
         this.player.body.checkCollision.left = false
         this.player.body.checkCollision.right = false
 
-        // 질문 표시
+        // 질문 표시 (선택지 텍스트는 각 플랫폼 위에 렌더링함)
         const quiz = this.quizzes[this.currentQuizIndex]
-        this.questionText.setText(`[${this.currentQuizIndex + 1}/10] \n ${quiz.question}\nA: ${quiz.a}    B: ${quiz.b}`)
+        this.questionText.setText(`[${this.currentQuizIndex + 1}/10] \n ${quiz.question}`)
         this.questionText.setVisible(true)
 
         // 카메라 뷰 근처에 O/X 퀴즈 플랫폼 생성
@@ -487,9 +487,11 @@ export default class Game extends Phaser.Scene {
         this.quizCenterY = y
         this.quizPlatformHalfHeight = (aPlatform.body && (aPlatform.body.halfHeight || aPlatform.body.height / 2)) || (aPlatform.displayHeight / 2)
 
-        const labelStyle = { color: '#000', fontSize: this.UI_LABEL_FONT_SIZE, fontStyle: 'bold', backgroundColor: '#ffffffbb', padding: { x: 4, y: 2 } }
-        const aLabel = this.add.text(aPlatform.x, aPlatform.y - 40, 'A', labelStyle).setOrigin(0.5).setDepth(2)
-        const bLabel = this.add.text(bPlatform.x, bPlatform.y - 40, 'B', labelStyle).setOrigin(0.5).setDepth(2)
+        const labelStyle = { color: '#000', fontSize: this.UI_LABEL_FONT_SIZE, fontStyle: 'bold', textAlign: 'center', backgroundColor: '#ffffffbb', padding: { x: 6, y: 4 } }
+        // 현재 퀴즈의 선택지 텍스트를 각 플랫폼 위에 표시
+        const currentQuiz = this.quizzes[this.currentQuizIndex]
+        const aLabel = this.add.text(aPlatform.x, aPlatform.y - 40, 'A: \n' + currentQuiz.a, labelStyle).setOrigin(0.5).setDepth(2)
+        const bLabel = this.add.text(bPlatform.x, bPlatform.y - 40, 'B: \n' + currentQuiz.b, labelStyle).setOrigin(0.5).setDepth(2)
         aPlatform.setData('label', aLabel)
         bPlatform.setData('label', bLabel)
 
