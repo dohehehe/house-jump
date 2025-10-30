@@ -230,6 +230,23 @@ export default class Game extends Phaser.Scene {
                 const platformHalfHeight = (platform.body && (platform.body.halfHeight || platform.body.height / 2)) || (platform.displayHeight / 2)
                 const topMostHalfHeight = (topMost.body && (topMost.body.halfHeight || topMost.body.height / 2)) || (topMost.displayHeight / 2)
                 let nextY = topMost.y - topMostHalfHeight - spacing - platformHalfHeight + this.PLATFORM_GAP_TWEAK
+                // 간단한 중첩 방지: 기존 플랫폼들과의 최소 간격 확보
+                const others = this.platforms.getChildren()
+                for (let tries = 0; tries < 6; tries++) {
+                    let overlapped = false
+                    for (let i = 0; i < others.length; i++) {
+                        const other = others[i]
+                        if (other === platform) continue
+                        const otherHalf = (other.body && (other.body.halfHeight || other.body.height / 2)) || (other.displayHeight / 2)
+                        const minGap = platformHalfHeight + otherHalf - this.PLATFORM_GAP_TWEAK * 0.5
+                        if (Math.abs(nextY - other.y) < minGap) {
+                            nextY = Math.min(nextY, other.y) - (minGap - Math.abs(nextY - other.y) + 1)
+                            overlapped = true
+                            break
+                        }
+                    }
+                    if (!overlapped) break
+                }
                 // Avoid spawning inside quiz zone if active (use edge-based spacing to keep consistency)
                 if (this.isQuizActive && this.quizZoneTop !== null && this.quizZoneBottom !== null) {
                     if (nextY <= this.quizZoneBottom && nextY >= this.quizZoneTop) {
@@ -237,6 +254,23 @@ export default class Game extends Phaser.Scene {
                         const quizHalfHeight = this.quizPlatformHalfHeight ?? 0
                         const quizTopEdgeY = quizCenterY - quizHalfHeight
                         nextY = quizTopEdgeY - spacing - platformHalfHeight + this.PLATFORM_GAP_TWEAK
+                        // 퀴즈 근처에서도 중첩 방지
+                        const othersInQuiz = this.platforms.getChildren()
+                        for (let tries = 0; tries < 6; tries++) {
+                            let overlapped = false
+                            for (let i = 0; i < othersInQuiz.length; i++) {
+                                const other = othersInQuiz[i]
+                                if (other === platform) continue
+                                const otherHalf = (other.body && (other.body.halfHeight || other.body.height / 2)) || (other.displayHeight / 2)
+                                const minGap = platformHalfHeight + otherHalf - this.PLATFORM_GAP_TWEAK * 0.5
+                                if (Math.abs(nextY - other.y) < minGap) {
+                                    nextY = Math.min(nextY, other.y) - (minGap - Math.abs(nextY - other.y) + 1)
+                                    overlapped = true
+                                    break
+                                }
+                            }
+                            if (!overlapped) break
+                        }
                     }
                 }
                 platform.y = nextY
@@ -322,31 +356,61 @@ export default class Game extends Phaser.Scene {
 
         // 퀴즈 구역 예약: 해당 영역의 기존 플랫폼은 위로 밀어냄
         if (this.quizZoneTop !== null && this.quizZoneBottom !== null) {
-            // 퀴즈 존에 걸친 기존 플랫폼들을 수집해 위로 겹치지 않게 스택으로 재배치
-            const toPush = []
+            // 퀴즈 존에 걸친 기존 플랫폼들을 제거하고, 퀴즈 상단 모서리부터 위로 재생성
+            const toRemove = []
             this.platforms.children.iterate(child => {
                 /** @type {Phaser.Physics.Arcade.Sprite} */
                 const platform = child
                 if (platform.y <= this.quizZoneBottom && platform.y >= this.quizZoneTop) {
-                    toPush.push(platform)
+                    toRemove.push(platform)
                 }
             })
 
-            if (toPush.length > 0) {
-                // 아래에서 위 순으로 정렬(퀴즈 존 근처부터 차곡차곡 쌓기)
-                toPush.sort((a, b) => b.y - a.y)
+            const count = toRemove.length
+            if (count > 0) {
+                // 먼저 제거
+                for (const platform of toRemove) {
+                    this.platforms.remove(platform, true, true)
+                }
 
+                // 퀴즈 플랫폼 상단 모서리 기준 계산값
                 const quizCenterY = this.quizCenterY ?? ((this.quizZoneTop + this.quizZoneBottom) / 2)
                 const quizHalfHeight = this.quizPlatformHalfHeight ?? 0
                 let currentTopEdgeY = quizCenterY - quizHalfHeight
 
-                for (const platform of toPush) {
-                    const platformHalfHeight = (platform.body && (platform.body.halfHeight || platform.body.height / 2)) || (platform.displayHeight / 2)
-                    const targetY = currentTopEdgeY - this.PLATFORM_SPACING_HEIGHT - platformHalfHeight + this.PLATFORM_GAP_TWEAK
-                    platform.y = targetY
-                    platform.x = Phaser.Math.Between(this.PLATFORM_X_MIN, this.PLATFORM_X_MAX)
+                // 같은 개수만큼 재생성(겹치지 않게 위로 스택)
+                for (let i = 0; i < count; i++) {
+                    const x = Phaser.Math.Between(this.PLATFORM_X_MIN, this.PLATFORM_X_MAX)
+                    /** @type {Phaser.Physics.Arcade.Sprite} */
+                    const platform = this.platforms.create(x, 0, 'platform')
+                    platform.setScale(this.PLATFORM_SCALE)
+                    platform.setDepth(0)
                     platform.body.updateFromGameObject()
-                    // 다음 스택의 기준: 방금 배치한 플랫폼의 상단 모서리
+
+                    const platformHalfHeight = (platform.body && (platform.body.halfHeight || platform.body.height / 2)) || (platform.displayHeight / 2)
+                    let targetY = currentTopEdgeY - this.PLATFORM_SPACING_HEIGHT - platformHalfHeight + this.PLATFORM_GAP_TWEAK
+                    // 주변 플랫폼과의 중첩 방지(재생성 시에도)
+                    const others = this.platforms.getChildren()
+                    for (let tries = 0; tries < 6; tries++) {
+                        let overlapped = false
+                        for (let k = 0; k < others.length; k++) {
+                            const other = others[k]
+                            if (other === platform) continue
+                            const otherHalf = (other.body && (other.body.halfHeight || other.body.height / 2)) || (other.displayHeight / 2)
+                            const minGap = platformHalfHeight + otherHalf - this.PLATFORM_GAP_TWEAK * 0.5
+                            if (Math.abs(targetY - other.y) < minGap) {
+                                targetY = Math.min(targetY, other.y) - (minGap - Math.abs(targetY - other.y) + 1)
+                                overlapped = true
+                                break
+                            }
+                        }
+                        if (!overlapped) break
+                    }
+
+                    platform.y = targetY
+                    platform.body.updateFromGameObject()
+
+                    // 다음 기준: 방금 배치한 플랫폼의 상단 모서리
                     currentTopEdgeY = targetY - platformHalfHeight
                 }
             }
