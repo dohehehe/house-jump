@@ -21,8 +21,8 @@ export default class Game extends Phaser.Scene {
 
     // 플랫폼 관련 상수
     PLATFORM_SCALE = 1.3
-    PLATFORM_SPACING_HEIGHT = 440 //플랫폼 높이
-    PLATFORM_GAP_TWEAK = 60 // 간격을 조금 더 가깝게 만드는 보정치
+    PLATFORM_SPACING_HEIGHT = 340 //플랫폼 높이
+    PLATFORM_GAP_TWEAK = 30 // 간격을 조금 더 가깝게 만드는 보정치
     PLATFORM_X_MIN = GAME_WIDTH / 10 //플랫폼 X 최소값
     PLATFORM_X_MAX = GAME_WIDTH * 9 / 10 //플랫폼 X 최대값
 
@@ -34,8 +34,8 @@ export default class Game extends Phaser.Scene {
     // 퀴즈 관련 상수
     QUIZ_PLATFORM_LEFT_X = GAME_WIDTH / 5//퀴즈 플랫폼 좌측 위치(게임 너비의 1/4)
     QUIZ_PLATFORM_RIGHT_X = GAME_WIDTH - (GAME_WIDTH / 5) //퀴즈 플랫폼 우측 위치(게임 너비의 3/4)
-    QUIZ_PLATFORM_Y_OFFSET = GAME_HEIGHT / 2 //퀴즈 플랫폼 위치(플레이어 높이의 1/4)
-    QUIZ_ZONE_PADDING = this.PLATFORM_SPACING_HEIGHT//퀴즈 구역 패딩(플랫폼 간격과 동일)
+    QUIZ_PLATFORM_Y_OFFSET = GAME_HEIGHT / 7 //퀴즈 플랫폼 위치 (더 위로 올림)
+    QUIZ_ZONE_PADDING = this.PLATFORM_SPACING_HEIGHT //퀴즈 구역 패딩(플랫폼 간격과 동일)
     QUIZ_INTERVAL = GAME_HEIGHT * 1.5   //다음 퀴즈까지의 간격(플레이어 높이의 2배)
 
     // 구름 관련 상수
@@ -235,8 +235,8 @@ export default class Game extends Phaser.Scene {
         // overlap은 제거하고 collider만 사용
 
         // 질문 텍스트 UI(초기에는 숨김)
-        const qStyle = { color: '#fff', fontSize: this.UI_QUESTION_FONT_SIZE, align: 'center', fontStyle: 'bold', lineHeight: 1.7, backgroundColor: '#00000088', padding: { x: 8, y: 6 }, wordWrap: { width: this.GAME_WIDTH * 0.9 } }
-        this.questionText = this.add.text(this.GAME_CENTER_X, 230, '', qStyle).setScrollFactor(0).setOrigin(0.5, 0.5).setDepth(2)
+        const qStyle = { color: '#fff', fontSize: this.UI_QUESTION_FONT_SIZE, align: 'center', fontStyle: 'bold', backgroundColor: '#00000088', padding: { x: 10, y: 20 }, wordWrap: { width: this.GAME_WIDTH * 0.9 } }
+        this.questionText = this.add.text(this.GAME_CENTER_X, 200, '', qStyle).setScrollFactor(0).setOrigin(0.5, 0.5).setDepth(2).setLineSpacing(25)
         this.questionText.setVisible(false)
     }
 
@@ -392,7 +392,7 @@ export default class Game extends Phaser.Scene {
         this.horizontalWrap(this.player)
 
         const bottomPlatform = this.findBottomMostPlatform()
-        if (this.player.y > bottomPlatform.y + 600) {
+        if (this.player.y > bottomPlatform.y + 1500) {
             // 최종 점수 등록
             this.registry.set('final-score', this.carrotsCollectedText.text)
             this.gameMusic.stop()
@@ -522,7 +522,54 @@ export default class Game extends Phaser.Scene {
 
     spawnQuizPlatforms() {
         const cam = this.cameras.main
-        const y = cam.scrollY + this.QUIZ_PLATFORM_Y_OFFSET
+        const targetY = cam.scrollY + this.QUIZ_PLATFORM_Y_OFFSET
+
+        // 주변 플랫폼과의 거리를 계산해서 적절한 위치 찾기
+        let bestY = targetY
+        const platforms = this.platforms.getChildren()
+
+        if (platforms.length > 0) {
+            // 타겟 위치 근처의 플랫폼들 찾기
+            let nearestPlatformBelow = null
+            let nearestPlatformAbove = null
+            let minDistanceBelow = Infinity
+            let minDistanceAbove = Infinity
+
+            for (const platform of platforms) {
+                const platformTop = platform.y - ((platform.body && (platform.body.halfHeight || platform.body.height / 2)) || (platform.displayHeight / 2))
+                const distance = targetY - platformTop
+
+                if (distance > 0 && distance < minDistanceBelow) {
+                    // 타겟 위치 아래에 있는 플랫폼 (더 가까운 것)
+                    minDistanceBelow = distance
+                    nearestPlatformBelow = platform
+                } else if (distance < 0 && Math.abs(distance) < minDistanceAbove) {
+                    // 타겟 위치 위에 있는 플랫폼 (더 가까운 것)
+                    minDistanceAbove = Math.abs(distance)
+                    nearestPlatformAbove = platform
+                }
+            }
+
+            // 적절한 위치 계산
+            if (nearestPlatformBelow) {
+                const platformTopY = nearestPlatformBelow.y - ((nearestPlatformBelow.body && (nearestPlatformBelow.body.halfHeight || nearestPlatformBelow.body.height / 2)) || (nearestPlatformBelow.displayHeight / 2))
+                // 아래 플랫폼에서 PLATFORM_SPACING_HEIGHT만큼 위에 배치
+                bestY = platformTopY - this.PLATFORM_SPACING_HEIGHT
+            } else if (nearestPlatformAbove) {
+                const platformTopY = nearestPlatformAbove.y - ((nearestPlatformAbove.body && (nearestPlatformAbove.body.halfHeight || nearestPlatformAbove.body.height / 2)) || (nearestPlatformAbove.displayHeight / 2))
+                // 위 플랫폼에서 PLATFORM_SPACING_HEIGHT만큼 아래에 배치
+                bestY = platformTopY + this.PLATFORM_SPACING_HEIGHT
+            }
+
+            // 타겟 Y 위치와 계산된 위치 중 더 적절한 것 선택 (너무 멀리 벗어나지 않도록)
+            const yDiff = Math.abs(bestY - targetY)
+            if (yDiff > this.PLATFORM_SPACING_HEIGHT * 2) {
+                // 계산된 위치가 너무 멀면 타겟 위치 사용
+                bestY = targetY
+            }
+        }
+
+        const y = bestY
         const leftX = this.QUIZ_PLATFORM_LEFT_X
         const rightX = this.QUIZ_PLATFORM_RIGHT_X
 
@@ -547,8 +594,8 @@ export default class Game extends Phaser.Scene {
         const labelStyle = { color: '#000', fontSize: this.UI_LABEL_FONT_SIZE, fontStyle: 'bold', align: 'center', backgroundColor: '#ffffffbb', padding: { x: 6, y: 4 }, wordWrap: { width: 500 } }
         // 현재 퀴즈의 선택지 텍스트를 각 플랫폼 위에 표시
         const currentQuiz = this.quizzes[this.currentQuizIndex]
-        const aLabel = this.add.text(aPlatform.x, aPlatform.y - 40, 'A: \n' + currentQuiz.a, labelStyle).setOrigin(0.5, 0.5).setDepth(2)
-        const bLabel = this.add.text(bPlatform.x, bPlatform.y - 40, 'B: \n' + currentQuiz.b, labelStyle).setOrigin(0.5, 0.5).setDepth(2)
+        const aLabel = this.add.text(aPlatform.x, aPlatform.y - 40, 'A: \n' + currentQuiz.a, labelStyle).setOrigin(0.5, 0.5).setDepth(2).setLineSpacing(15)
+        const bLabel = this.add.text(bPlatform.x, bPlatform.y - 40, 'B: \n' + currentQuiz.b, labelStyle).setOrigin(0.5, 0.5).setDepth(2).setLineSpacing(15)
         aPlatform.setData('label', aLabel)
         bPlatform.setData('label', bLabel)
 
@@ -644,27 +691,13 @@ export default class Game extends Phaser.Scene {
     handleCollectCarrot(player, carrot) {
         //hide from display
         this.carrots.killAndHide(carrot)
-
-        //disable from physics world
         this.physics.world.disableBody(carrot.body)
-
         this.carrotCollected++
-
-        // this.sound.play('collect')
-
         this.carrotsCollectedText.text = `Coins: ${this.carrotCollected}`
     }
 
     findBottomMostPlatform() {
         const platforms = this.platforms.getChildren()
-        const groundPlatforms = this.groundPlatform.getChildren()
-
-        // 바닥 플랫폼이 있으면 그것을 기준으로 함
-        if (groundPlatforms.length > 0) {
-            return groundPlatforms[0]
-        }
-
-        // 바닥 플랫폼이 없으면 일반 플랫폼 중 가장 아래 것을 찾음
         if (platforms.length === 0) return null
 
         let bottomPlatform = platforms[0]
