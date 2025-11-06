@@ -119,11 +119,13 @@ export default class Game extends Phaser.Scene {
     preload() {
         this.load.setBaseURL('assets/')
         this.load.image('background', 'Background/bg_01.png')
-        this.load.image('building-01', 'Background/building-01.png')
+
         this.load.image('ground-start', 'Environment/ground_start.png')
 
         this.load.image('platform-01', 'Environment/cloud-01.png')
         this.load.image('platform-02', 'Environment/cloud-02.png')
+
+        this.load.image('building-01', 'Background/building-01.png')
 
 
         // 플레이어 이미지 로드
@@ -144,10 +146,9 @@ export default class Game extends Phaser.Scene {
 
         //바닥 플랫폼 생성 (고정된 시작점)
         this.groundPlatform = this.physics.add.staticGroup()
-        // 플랫폼을 임시로 생성해서 높이를 측정
-        const tempPlatform = this.add.image(0, 0, 'ground-start')
-        const platformHeight = tempPlatform.displayHeight
-        tempPlatform.destroy()
+        // 플랫폼 높이를 텍스처에서 직접 계산 (화면에 보이지 않게)
+        const platformTexture = this.textures.get('ground-start')
+        const platformHeight = platformTexture.source[0].height
 
         // 플랫폼의 하단이 화면 하단에 맞도록 Y 위치 계산 (플랫폼 중심 = 화면 하단 - 플랫폼 높이/2 - 추가 오프셋)
         const groundPlatformY = this.GAME_HEIGHT - (platformHeight / 2) - this.GROUND_PLATFORM_OFFSET
@@ -160,6 +161,17 @@ export default class Game extends Phaser.Scene {
         this.actualGroundPlatformY = groundPlatformY
         // 플랫폼 상단 Y 위치 저장 (플레이어 위치 계산용)
         const platformTopY = groundPlatformY - (platformHeight / 2)
+
+        // 추가 배경 이미지 (카메라와 함께 스크롤됨) - 바닥 플랫폼 상단에 맞춤
+        // 배경 이미지 높이를 텍스처에서 직접 계산 (화면에 보이지 않게)
+        const buildingTexture = this.textures.get('building-01')
+        const buildingHeight = buildingTexture.source[0].height
+        // 배경 이미지의 하단이 플랫폼 상단에 맞도록 Y 위치 계산
+        // 이미지 중심 = 플랫폼 상단 - (이미지 높이 / 2) -> 이미지 하단이 플랫폼 상단에 맞춰짐
+        const buildingImageY = platformTopY - (buildingHeight / 3)
+        const buildingImage = this.add.image(this.GAME_CENTER_X, buildingImageY, 'building-01').setScrollFactor(1, 0.2)
+        buildingImage.setDepth(0) // 기존 배경 위, 플랫폼 아래에 표시
+        buildingImage.setAlpha(0.6) // 투명도 조정
 
         //일반 플랫폼 생성
         this.platforms = this.physics.add.staticGroup()
@@ -194,19 +206,24 @@ export default class Game extends Phaser.Scene {
         }
 
         // 캐릭터 생성 (바닥 플랫폼 위에서 시작)
-        // 플레이어 이미지를 임시로 생성해서 높이 측정
-        const tempPlayer = this.add.image(0, 0, 'bunny-stand').setScale(this.PLAYER_SCALE)
-        const playerHeight = tempPlayer.displayHeight
-        tempPlayer.destroy()
+        // 플레이어 높이를 텍스처에서 직접 계산 (화면에 보이지 않게)
+        const playerTexture = this.textures.get('bunny-stand')
+        const playerHeight = playerTexture.source[0].height * this.PLAYER_SCALE
 
-        // 플레이어를 약간 위에 배치해서 중력으로 떨어지게 함 (바닥에 닿으면 자동 점프)
-        // 플레이어의 발(하단)이 플랫폼 상단보다 약간 위에 위치하도록
-        const playerStartY = platformTopY - (playerHeight / 2) - 50 // 약간 위에 배치
+        // 플레이어를 플랫폼 위에 바로 서있게 배치 (플레이어의 발이 플랫폼 상단에 닿도록)
+        // 플레이어 중심 = 플랫폼 상단 - (플레이어 높이 / 2)
+        const playerStartY = platformTopY - (playerHeight / 2)
+
+        // 플레이어를 먼저 보이지 않게 생성 (모든 설정 완료 후 표시)
         this.player = this.physics.add.sprite(this.GAME_CENTER_X, playerStartY, 'bunny-stand').setScale(this.PLAYER_SCALE)
+        this.player.setVisible(false) // 모든 설정이 완료될 때까지 숨김
         this.player.setDepth(1) // 플랫폼보다 앞에 배치
         this.player.body.checkCollision.up = false
         this.player.body.checkCollision.left = false
         this.player.body.checkCollision.right = false
+
+        // 물리 바디를 즉시 업데이트하여 플레이어가 플랫폼 위에 정확히 위치하도록
+        this.player.body.updateFromGameObject()
 
         this.physics.add.collider(this.platforms, this.player)
         this.physics.add.collider(this.groundPlatform, this.player)
@@ -216,8 +233,14 @@ export default class Game extends Phaser.Scene {
         // set the horizontal dead zone to 1.5x game width
         this.cameras.main.setDeadzone(this.scale.width * this.CAMERA_DEADZONE_MULTIPLIER)
         // 초기 카메라 스크롤 위치 설정 (바닥 플랫폼이 화면 하단에 보이도록)
-        this.cameras.main.scrollY = this.player.y - this.CAMERA_FOLLOW_OFFSET_Y_INITIAL
+        this.cameras.main.scrollY = playerStartY - this.CAMERA_FOLLOW_OFFSET_Y_INITIAL
         this.cameras.main.startFollow(this.player)
+
+        // 모든 설정이 완료되었으므로 플레이어를 표시
+        // 다음 프레임에 표시하여 깜빡임 방지
+        this.time.delayedCall(0, () => {
+            this.player.setVisible(true)
+        })
 
         this.physics.add.collider(this.platforms, this.carrots)
 
