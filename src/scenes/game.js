@@ -13,28 +13,28 @@ export default class Game extends Phaser.Scene {
     GAME_CENTER_Y = GAME_HEIGHT / 2
 
     // 플레이어 관련 상수
-    PLAYER_SCALE = 0.5
-    PLAYER_JUMP_VELOCITY = -450;
+    PLAYER_SCALE = 1.2
+    PLAYER_JUMP_VELOCITY = -1300;
     PLAYER_MOVE_VELOCITY_LEFT = -GAME_WIDTH / 2;
     PLAYER_MOVE_VELOCITY_RIGHT = GAME_WIDTH / 2;
     CORRECT_ANSWER_BOOST = 2 // 정답 시 추가 점프력 배수 (더 높이 뛰기)
 
     // 플랫폼 관련 상수
-    PLATFORM_SCALE = 0.5
-    PLATFORM_SPACING_HEIGHT = 170 //플랫폼 높이
-    PLATFORM_GAP_TWEAK = 20 // 간격을 조금 더 가깝게 만드는 보정치
+    PLATFORM_SCALE = 1.3
+    PLATFORM_SPACING_HEIGHT = 440 //플랫폼 높이
+    PLATFORM_GAP_TWEAK = 60 // 간격을 조금 더 가깝게 만드는 보정치
     PLATFORM_X_MIN = GAME_WIDTH / 10 //플랫폼 X 최소값
     PLATFORM_X_MAX = GAME_WIDTH * 9 / 10 //플랫폼 X 최대값
 
     // 바닥 플랫폼 관련 상수
-    GROUND_PLATFORM_Y = GAME_HEIGHT + 100 // 바닥 플랫폼 Y 위치 (화면 하단에서 약간 위)
+    GROUND_PLATFORM_Y = GAME_HEIGHT // 바닥 플랫폼 Y 위치 (화면 하단에서 더 아래로)
     GROUND_PLATFORM_WIDTH = GAME_WIDTH // 바닥 플랫폼 너비
-    GROUND_PLATFORM_SCALE = 1.0 // 바닥 플랫폼 스케일
+    GROUND_PLATFORM_OFFSET = 100 // 바닥 플랫폼을 추가로 내릴 오프셋 (간격 확보용)
 
     // 퀴즈 관련 상수
     QUIZ_PLATFORM_LEFT_X = GAME_WIDTH / 5//퀴즈 플랫폼 좌측 위치(게임 너비의 1/4)
     QUIZ_PLATFORM_RIGHT_X = GAME_WIDTH - (GAME_WIDTH / 5) //퀴즈 플랫폼 우측 위치(게임 너비의 3/4)
-    QUIZ_PLATFORM_Y_OFFSET = GAME_HEIGHT / 4 //퀴즈 플랫폼 위치(플레이어 높이의 1/4)
+    QUIZ_PLATFORM_Y_OFFSET = GAME_HEIGHT / 2 //퀴즈 플랫폼 위치(플레이어 높이의 1/4)
     QUIZ_ZONE_PADDING = this.PLATFORM_SPACING_HEIGHT//퀴즈 구역 패딩(플랫폼 간격과 동일)
     QUIZ_INTERVAL = GAME_HEIGHT * 1.5   //다음 퀴즈까지의 간격(플레이어 높이의 2배)
 
@@ -47,12 +47,13 @@ export default class Game extends Phaser.Scene {
 
     // 카메라 관련 상수
     CAMERA_DEADZONE_MULTIPLIER = 1.3
-    CAMERA_FOLLOW_OFFSET_Y = 200 // 카메라 시점
+    CAMERA_FOLLOW_OFFSET_Y_INITIAL = 1000 // 게임 시작 시 카메라 시점 (바닥이 보이도록)
+    CAMERA_FOLLOW_OFFSET_Y_NORMAL = 600 // 일반 게임 플레이 시 카메라 시점
 
     // UI 관련 상수
-    UI_FONT_SIZE = 24
-    UI_QUESTION_FONT_SIZE = 35
-    UI_LABEL_FONT_SIZE = 18
+    UI_FONT_SIZE = 70
+    UI_QUESTION_FONT_SIZE = 70
+    UI_LABEL_FONT_SIZE = 60
 
 
 
@@ -99,6 +100,10 @@ export default class Game extends Phaser.Scene {
     quizZoneBottom = null
     /** @type {{question:string, a:string, b:string, correct:'A'|'B'}[]} */
     quizzes = quizzes
+    /** @type {boolean} */
+    hasStartedFirstJump = false // 첫 점프 시작 여부 (카메라 오프셋 전환용)
+    /** @type {boolean} */
+    wasTouchingGround = false // 이전 프레임에서 바닥에 닿았는지 추적
 
     constructor() {
         super({ key: 'game' });
@@ -107,18 +112,23 @@ export default class Game extends Phaser.Scene {
     init() {
         this.carrotCollected = 0;
         this.quizInterval = this.QUIZ_INTERVAL;
+        this.hasStartedFirstJump = false; // 첫 점프 상태 초기화
+        this.wasTouchingGround = false; // 바닥 접촉 상태 초기화
     }
 
     preload() {
         this.load.setBaseURL('assets/')
-        this.load.image('background', 'Background/bg_layer1.png')
+        this.load.image('background', 'Background/bg_01.png')
+        this.load.image('building-01', 'Background/building-01.png')
+        this.load.image('ground-start', 'Environment/ground_start.png')
 
-        this.load.image('cloud', 'Enemies/cloud.png')
-        // 플랫폼 이미지 로드
-        this.load.image('platform', 'Environment/ground_grass.png')
+        this.load.image('platform-01', 'Environment/cloud-01.png')
+        this.load.image('platform-02', 'Environment/cloud-02.png')
+
+
         // 플레이어 이미지 로드
-        this.load.image('bunny-stand', 'Players/bunny1_stand.png')
-        this.load.image('bunny-jump', 'Players/bunny1_jump.png')
+        this.load.image('bunny-stand', 'Players/character-01.png')
+        this.load.image('bunny-jump', 'Players/character-01.png')
 
         this.load.image('coin', 'Items/coin.png')
 
@@ -132,21 +142,24 @@ export default class Game extends Phaser.Scene {
     create() {
         var image = this.add.image(this.GAME_CENTER_X, this.GAME_CENTER_Y, 'background').setScrollFactor(1, 0)
 
-        //구름 생성
-        this.clouds = this.add.group();
-        for (let index = 0; index < this.CLOUD_COUNT; index++) {
-            const x = Phaser.Math.Between(0, this.GAME_WIDTH)
-            const y = this.CLOUD_Y_SPACING * index;
-            this.clouds.add(this.add.image(x, y, 'cloud'))
-        }
-
         //바닥 플랫폼 생성 (고정된 시작점)
         this.groundPlatform = this.physics.add.staticGroup()
-        const groundPlatform = this.groundPlatform.create(this.GAME_CENTER_X, this.GROUND_PLATFORM_Y, 'platform')
-        groundPlatform.setScale(this.GROUND_PLATFORM_SCALE)
+        // 플랫폼을 임시로 생성해서 높이를 측정
+        const tempPlatform = this.add.image(0, 0, 'ground-start')
+        const platformHeight = tempPlatform.displayHeight
+        tempPlatform.destroy()
+
+        // 플랫폼의 하단이 화면 하단에 맞도록 Y 위치 계산 (플랫폼 중심 = 화면 하단 - 플랫폼 높이/2 - 추가 오프셋)
+        const groundPlatformY = this.GAME_HEIGHT - (platformHeight / 2) - this.GROUND_PLATFORM_OFFSET
+        const groundPlatform = this.groundPlatform.create(this.GAME_CENTER_X, groundPlatformY, 'ground-start')
         groundPlatform.setData('isGround', true) // 바닥 플랫폼임을 표시
         groundPlatform.setDepth(0) // 캐릭터보다 뒤에 배치
         groundPlatform.body.updateFromGameObject()
+
+        // 실제 바닥 플랫폼 Y 위치를 저장 (플레이어 시작 위치 등에서 사용)
+        this.actualGroundPlatformY = groundPlatformY
+        // 플랫폼 상단 Y 위치 저장 (플레이어 위치 계산용)
+        const platformTopY = groundPlatformY - (platformHeight / 2)
 
         //일반 플랫폼 생성
         this.platforms = this.physics.add.staticGroup()
@@ -154,12 +167,19 @@ export default class Game extends Phaser.Scene {
         this.carrots = this.physics.add.group({
             classType: Carrot
         })
+
+        // 바닥 플랫폼 상단보다 위에서 일반 플랫폼 시작 (간격 확보)
+        const firstPlatformY = platformTopY - this.PLATFORM_SPACING_HEIGHT
+
         for (let i = 0; i < 5; i++) {
             const x = Phaser.Math.Between(this.PLATFORM_X_MIN, this.PLATFORM_X_MAX)
-            const y = this.PLATFORM_SPACING_HEIGHT * i;
+            const y = firstPlatformY - (this.PLATFORM_SPACING_HEIGHT * i);
+
+            // 플랫폼 이미지를 랜덤으로 선택
+            const platformType = Phaser.Math.Between(0, 1) === 0 ? 'platform-01' : 'platform-02'
 
             /** @type {Phaser.Physics.Arcade.Sprite} */
-            const platform = this.platforms.create(x, y, 'platform')
+            const platform = this.platforms.create(x, y, platformType)
             platform.setScale(this.PLATFORM_SCALE)
             platform.setDepth(0) // 캐릭터보다 뒤에 배치
 
@@ -174,7 +194,15 @@ export default class Game extends Phaser.Scene {
         }
 
         // 캐릭터 생성 (바닥 플랫폼 위에서 시작)
-        this.player = this.physics.add.sprite(this.GAME_CENTER_X, this.GROUND_PLATFORM_Y - 100, 'bunny-stand').setScale(this.PLAYER_SCALE)
+        // 플레이어 이미지를 임시로 생성해서 높이 측정
+        const tempPlayer = this.add.image(0, 0, 'bunny-stand').setScale(this.PLAYER_SCALE)
+        const playerHeight = tempPlayer.displayHeight
+        tempPlayer.destroy()
+
+        // 플레이어를 약간 위에 배치해서 중력으로 떨어지게 함 (바닥에 닿으면 자동 점프)
+        // 플레이어의 발(하단)이 플랫폼 상단보다 약간 위에 위치하도록
+        const playerStartY = platformTopY - (playerHeight / 2) - 50 // 약간 위에 배치
+        this.player = this.physics.add.sprite(this.GAME_CENTER_X, playerStartY, 'bunny-stand').setScale(this.PLAYER_SCALE)
         this.player.setDepth(1) // 플랫폼보다 앞에 배치
         this.player.body.checkCollision.up = false
         this.player.body.checkCollision.left = false
@@ -183,16 +211,19 @@ export default class Game extends Phaser.Scene {
         this.physics.add.collider(this.platforms, this.player)
         this.physics.add.collider(this.groundPlatform, this.player)
 
-        this.cameras.main.startFollow(this.player)
+        // 초기 카메라 오프셋 설정 (바닥이 보이도록)
+        this.cameras.main.setFollowOffset(0, this.CAMERA_FOLLOW_OFFSET_Y_INITIAL)
         // set the horizontal dead zone to 1.5x game width
         this.cameras.main.setDeadzone(this.scale.width * this.CAMERA_DEADZONE_MULTIPLIER)
-        this.cameras.main.setFollowOffset(0, this.CAMERA_FOLLOW_OFFSET_Y)
+        // 초기 카메라 스크롤 위치 설정 (바닥 플랫폼이 화면 하단에 보이도록)
+        this.cameras.main.scrollY = this.player.y - this.CAMERA_FOLLOW_OFFSET_Y_INITIAL
+        this.cameras.main.startFollow(this.player)
 
         this.physics.add.collider(this.platforms, this.carrots)
 
         this.physics.add.overlap(this.player, this.carrots, this.handleCollectCarrot, undefined, this)
 
-        const style = { color: '#000', fontSize: this.UI_FONT_SIZE, fontStyle: 'bold', backgroundColor: '#f5a040', }
+        const style = { color: '#000', fontSize: this.UI_FONT_SIZE, fontStyle: 'bold', backgroundColor: '#ffffff', align: 'center' }
         this.carrotsCollectedText = this.add.text(this.GAME_CENTER_X, 10, 'Coin: 0', style).setScrollFactor(0).setOrigin(0.5, 0).setDepth(1)
 
         this.gameMusic = this.sound.add('background-music', { loop: true })
@@ -204,8 +235,8 @@ export default class Game extends Phaser.Scene {
         // overlap은 제거하고 collider만 사용
 
         // 질문 텍스트 UI(초기에는 숨김)
-        const qStyle = { color: '#fff', fontSize: this.UI_QUESTION_FONT_SIZE, textAlign: 'center', fontStyle: 'bold', backgroundColor: '#00000088', padding: { x: 8, y: 6 } }
-        this.questionText = this.add.text(this.GAME_CENTER_X, 48, '', qStyle).setScrollFactor(0).setOrigin(0.5, 0.5).setDepth(2)
+        const qStyle = { color: '#fff', fontSize: this.UI_QUESTION_FONT_SIZE, align: 'center', fontStyle: 'bold', lineHeight: 1.7, backgroundColor: '#00000088', padding: { x: 8, y: 6 }, wordWrap: { width: this.GAME_WIDTH * 0.9 } }
+        this.questionText = this.add.text(this.GAME_CENTER_X, 230, '', qStyle).setScrollFactor(0).setOrigin(0.5, 0.5).setDepth(2)
         this.questionText.setVisible(false)
     }
 
@@ -280,6 +311,9 @@ export default class Game extends Phaser.Scene {
                 }
                 platform.y = nextY
                 platform.x = Phaser.Math.Between(this.PLATFORM_X_MIN, this.PLATFORM_X_MAX)
+                // 플랫폼 이미지를 랜덤으로 변경
+                const platformType = Phaser.Math.Between(0, 1) === 0 ? 'platform-01' : 'platform-02'
+                platform.setTexture(platformType)
                 platform.body.updateFromGameObject()
 
                 // 재활용 시에도 일정 확률로 코인 생성
@@ -290,30 +324,51 @@ export default class Game extends Phaser.Scene {
         })
 
 
-        // 구름 재활용
-        this.clouds.children.iterate(child => {
-            /** @type {Phaser.GameObjects.Image} */
-            const cloud = child
+        const touchingDown = this.player.body.touching.down;
 
-            const scrollY = this.cameras.main.scrollY
-            if (cloud.y >= scrollY + this.CLOUD_RECYCLE_OFFSET) {
-                cloud.y = scrollY - Phaser.Math.Between(this.CLOUD_Y_RANGE_MIN, this.CLOUD_Y_RANGE_MAX)
+        // 바닥 플랫폼과의 직접 충돌 확인 (더 정확한 감지)
+        let isOnGroundPlatform = false
+        this.groundPlatform.children.entries.forEach(platform => {
+            if (!platform.body || !this.player.body) return
+            const playerBottom = this.player.body.bottom
+            const platformTop = platform.body.top
+            const playerCenterX = this.player.body.center.x
+            const platformLeft = platform.body.left
+            const platformRight = platform.body.right
+
+            // 플레이어가 바닥 플랫폼 위에 있고, 좌우 범위 내에 있는지 확인 (더 넓은 범위로 감지)
+            const isOnTop = playerBottom >= platformTop - 10 && playerBottom <= platformTop + 15
+            const isInRange = playerCenterX >= platformLeft - 50 && playerCenterX <= platformRight + 50
+
+            if (isOnTop && isInRange) {
+                isOnGroundPlatform = true
             }
         })
 
-        const touchingDown = this.player.body.touching.down;
+        // 바닥에 닿았을 때 (touchingDown 또는 바닥 플랫폼 위에 있을 때)
+        if (touchingDown || isOnGroundPlatform) {
+            // 이전 프레임에서 바닥에 닿지 않았고, 지금 닿았을 때만 점프 (중복 점프 방지)
+            if (!this.wasTouchingGround) {
+                // 퀴즈 플랫폼 착지 확인
+                if (this.isQuizActive) {
+                    this.checkQuizPlatformLanding()
+                }
 
-        if (touchingDown) {
-            // 퀴즈 플랫폼 착지 확인
-            if (this.isQuizActive) {
-                this.checkQuizPlatformLanding()
+                // 첫 점프 시작 시 카메라 오프셋을 일반값으로 변경
+                if (!this.hasStartedFirstJump) {
+                    this.hasStartedFirstJump = true
+                    this.cameras.main.setFollowOffset(0, this.CAMERA_FOLLOW_OFFSET_Y_NORMAL)
+                }
+
+                this.player.setVelocityY(this.PLAYER_JUMP_VELOCITY)
+
+                this.player.setTexture('bunny-jump')
+
+                // this.sound.play('jump')
             }
-
-            this.player.setVelocityY(this.PLAYER_JUMP_VELOCITY)
-
-            this.player.setTexture('bunny-jump')
-
-            // this.sound.play('jump')
+            this.wasTouchingGround = true
+        } else {
+            this.wasTouchingGround = false
         }
 
 
@@ -391,8 +446,10 @@ export default class Game extends Phaser.Scene {
                 // 같은 개수만큼 재생성(겹치지 않게 위로 스택)
                 for (let i = 0; i < count; i++) {
                     const x = Phaser.Math.Between(this.PLATFORM_X_MIN, this.PLATFORM_X_MAX)
+                    // 플랫폼 이미지를 랜덤으로 선택
+                    const platformType = Phaser.Math.Between(0, 1) === 0 ? 'platform-01' : 'platform-02'
                     /** @type {Phaser.Physics.Arcade.Sprite} */
-                    const platform = this.platforms.create(x, 0, 'platform')
+                    const platform = this.platforms.create(x, 0, platformType)
                     platform.setScale(this.PLATFORM_SCALE)
                     platform.setDepth(0)
                     platform.body.updateFromGameObject()
@@ -470,14 +527,14 @@ export default class Game extends Phaser.Scene {
         const rightX = this.QUIZ_PLATFORM_RIGHT_X
 
         /** @type {Phaser.Physics.Arcade.Sprite} */
-        const aPlatform = this.quizPlatforms.create(leftX, y, 'platform')
+        const aPlatform = this.quizPlatforms.create(leftX, y, 'platform-01')
         aPlatform.setScale(this.PLATFORM_SCALE)
         aPlatform.setData('choice', 'A')
         aPlatform.setDepth(0) // 캐릭터보다 뒤에 배치
         aPlatform.body.updateFromGameObject()
 
         /** @type {Phaser.Physics.Arcade.Sprite} */
-        const bPlatform = this.quizPlatforms.create(rightX, y, 'platform')
+        const bPlatform = this.quizPlatforms.create(rightX, y, 'platform-02')
         bPlatform.setScale(this.PLATFORM_SCALE)
         bPlatform.setData('choice', 'B')
         bPlatform.setDepth(0) // 캐릭터보다 뒤에 배치
@@ -487,11 +544,11 @@ export default class Game extends Phaser.Scene {
         this.quizCenterY = y
         this.quizPlatformHalfHeight = (aPlatform.body && (aPlatform.body.halfHeight || aPlatform.body.height / 2)) || (aPlatform.displayHeight / 2)
 
-        const labelStyle = { color: '#000', fontSize: this.UI_LABEL_FONT_SIZE, fontStyle: 'bold', textAlign: 'center', backgroundColor: '#ffffffbb', padding: { x: 6, y: 4 } }
+        const labelStyle = { color: '#000', fontSize: this.UI_LABEL_FONT_SIZE, fontStyle: 'bold', align: 'center', backgroundColor: '#ffffffbb', padding: { x: 6, y: 4 }, wordWrap: { width: 500 } }
         // 현재 퀴즈의 선택지 텍스트를 각 플랫폼 위에 표시
         const currentQuiz = this.quizzes[this.currentQuizIndex]
-        const aLabel = this.add.text(aPlatform.x, aPlatform.y - 40, 'A: \n' + currentQuiz.a, labelStyle).setOrigin(0.5).setDepth(2)
-        const bLabel = this.add.text(bPlatform.x, bPlatform.y - 40, 'B: \n' + currentQuiz.b, labelStyle).setOrigin(0.5).setDepth(2)
+        const aLabel = this.add.text(aPlatform.x, aPlatform.y - 40, 'A: \n' + currentQuiz.a, labelStyle).setOrigin(0.5, 0.5).setDepth(2)
+        const bLabel = this.add.text(bPlatform.x, bPlatform.y - 40, 'B: \n' + currentQuiz.b, labelStyle).setOrigin(0.5, 0.5).setDepth(2)
         aPlatform.setData('label', aLabel)
         bPlatform.setData('label', bLabel)
 

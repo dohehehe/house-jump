@@ -4,8 +4,8 @@ import GameOver from './scenes/gameover.js'
 
 
 // 게임 크기 상수 정의
-const GAME_WIDTH = 480;
-const GAME_HEIGHT = 800;
+const GAME_WIDTH = 1440;
+const GAME_HEIGHT = 2560;
 
 export default new Phaser.Game(
     {
@@ -17,7 +17,7 @@ export default new Phaser.Game(
             default: 'arcade',
             arcade: {
                 gravity: {
-                    y: 400
+                    y: 1200
                 },
                 debug: false
             }
