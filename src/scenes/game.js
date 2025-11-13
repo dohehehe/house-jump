@@ -126,6 +126,10 @@ export default class Game extends Phaser.Scene {
         this.load.image('platform-02', 'Environment/cloud-02.png')
 
         this.load.image('building-01', 'Background/building-01.png')
+        this.load.image('building-02', 'Background/building-02.png')
+        this.load.image('building-03', 'Background/building-03.png')
+        this.load.image('building-04', 'Background/building-04.png')
+
 
 
         // 플레이어 이미지 로드
@@ -143,6 +147,8 @@ export default class Game extends Phaser.Scene {
 
     create() {
         var image = this.add.image(this.GAME_CENTER_X, this.GAME_CENTER_Y, 'background').setScrollFactor(1, 0)
+
+        var image2 = this.add.image(this.GAME_CENTER_X, this.GAME_CENTER_Y, 'background').setScrollFactor(1, 0).setDepth(5).setAlpha(0.3);
 
         //바닥 플랫폼 생성 (고정된 시작점)
         this.groundPlatform = this.physics.add.staticGroup()
@@ -170,8 +176,30 @@ export default class Game extends Phaser.Scene {
         // 이미지 중심 = 플랫폼 상단 - (이미지 높이 / 2) -> 이미지 하단이 플랫폼 상단에 맞춰짐
         const buildingImageY = platformTopY - (buildingHeight / 3)
         const buildingImage = this.add.image(this.GAME_CENTER_X, buildingImageY, 'building-01').setScrollFactor(1, 0.2)
-        buildingImage.setDepth(0) // 기존 배경 위, 플랫폼 아래에 표시
-        buildingImage.setAlpha(0.6) // 투명도 조정
+        buildingImage.setDepth(3) // 기존 배경 위, 플랫폼 아래에 표시
+        // buildingImage.setAlpha(0.9) // 투명도 조정
+
+        const building2Texture = this.textures.get('building-02')
+        const building2Height = building2Texture.source[0].height
+        const building2ImageY = platformTopY - (building2Height / 3)
+        const building2Image = this.add.image(this.GAME_CENTER_X, building2ImageY, 'building-02').setScrollFactor(1, 0.1)
+        building2Image.setDepth(2)
+        // building2Image.setAlpha(1) // 투명도 조정
+
+        const building3Texture = this.textures.get('building-03')
+        const building3Height = building3Texture.source[0].height
+        const building3ImageY = platformTopY - (building3Height / 3)
+        const building3Image = this.add.image(this.GAME_CENTER_X, building3ImageY, 'building-03').setScrollFactor(1, 0.05)
+        building3Image.setDepth(1)
+        // building2Image.setAlpha(1) // 투명도 조정
+
+        const building4Texture = this.textures.get('building-04')
+        const building4Height = building4Texture.source[0].height
+        const building4ImageY = platformTopY - (building4Height / 3)
+        const building4Image = this.add.image(this.GAME_CENTER_X, building4ImageY, 'building-04').setScrollFactor(1, 0.03)
+        building4Image.setDepth(0)
+        // building2Image.setAlpha(1) // 투명도 조정
+
 
         //일반 플랫폼 생성
         this.platforms = this.physics.add.staticGroup()
@@ -193,7 +221,7 @@ export default class Game extends Phaser.Scene {
             /** @type {Phaser.Physics.Arcade.Sprite} */
             const platform = this.platforms.create(x, y, platformType)
             platform.setScale(this.PLATFORM_SCALE)
-            platform.setDepth(0) // 캐릭터보다 뒤에 배치
+            platform.setDepth(7) // 캐릭터보다 뒤에 배치
 
             /** @type {Phaser.Physics.Arcade.StaticBody} */
             const body = platform.body
@@ -217,7 +245,7 @@ export default class Game extends Phaser.Scene {
         // 플레이어를 먼저 보이지 않게 생성 (모든 설정 완료 후 표시)
         this.player = this.physics.add.sprite(this.GAME_CENTER_X, playerStartY, 'bunny-stand').setScale(this.PLAYER_SCALE)
         this.player.setVisible(false) // 모든 설정이 완료될 때까지 숨김
-        this.player.setDepth(1) // 플랫폼보다 앞에 배치
+        this.player.setDepth(10) // 플랫폼보다 앞에 배치
         this.player.body.checkCollision.up = false
         this.player.body.checkCollision.left = false
         this.player.body.checkCollision.right = false
@@ -247,7 +275,7 @@ export default class Game extends Phaser.Scene {
         this.physics.add.overlap(this.player, this.carrots, this.handleCollectCarrot, undefined, this)
 
         const style = { color: '#000', fontSize: this.UI_FONT_SIZE, fontStyle: 'bold', backgroundColor: '#ffffff', align: 'center' }
-        this.carrotsCollectedText = this.add.text(this.GAME_CENTER_X, 10, 'Coin: 0', style).setScrollFactor(0).setOrigin(0.5, 0).setDepth(1)
+        this.carrotsCollectedText = this.add.text(this.GAME_CENTER_X, 10, 'Coin: 0', style).setScrollFactor(0).setOrigin(0.5, 0).setDepth(11)
 
         this.gameMusic = this.sound.add('background-music', { loop: true })
         // this.gameMusic.play()
@@ -259,7 +287,7 @@ export default class Game extends Phaser.Scene {
 
         // 질문 텍스트 UI(초기에는 숨김)
         const qStyle = { color: '#fff', fontSize: this.UI_QUESTION_FONT_SIZE, align: 'center', fontStyle: 'bold', backgroundColor: '#00000088', padding: { x: 10, y: 20 }, wordWrap: { width: this.GAME_WIDTH * 0.9 } }
-        this.questionText = this.add.text(this.GAME_CENTER_X, 200, '', qStyle).setScrollFactor(0).setOrigin(0.5, 0.5).setDepth(2).setLineSpacing(25)
+        this.questionText = this.add.text(this.GAME_CENTER_X, 200, '', qStyle).setScrollFactor(0).setOrigin(0.5, 0.5).setDepth(11).setLineSpacing(25)
         this.questionText.setVisible(false)
     }
 
@@ -474,7 +502,7 @@ export default class Game extends Phaser.Scene {
                     /** @type {Phaser.Physics.Arcade.Sprite} */
                     const platform = this.platforms.create(x, 0, platformType)
                     platform.setScale(this.PLATFORM_SCALE)
-                    platform.setDepth(0)
+                    platform.setDepth(7)
                     platform.body.updateFromGameObject()
 
                     const platformHalfHeight = (platform.body && (platform.body.halfHeight || platform.body.height / 2)) || (platform.displayHeight / 2)
@@ -600,14 +628,14 @@ export default class Game extends Phaser.Scene {
         const aPlatform = this.quizPlatforms.create(leftX, y, 'platform-01')
         aPlatform.setScale(this.PLATFORM_SCALE)
         aPlatform.setData('choice', 'A')
-        aPlatform.setDepth(0) // 캐릭터보다 뒤에 배치
+        aPlatform.setDepth(8) // 캐릭터보다 뒤에 배치
         aPlatform.body.updateFromGameObject()
 
         /** @type {Phaser.Physics.Arcade.Sprite} */
         const bPlatform = this.quizPlatforms.create(rightX, y, 'platform-02')
         bPlatform.setScale(this.PLATFORM_SCALE)
         bPlatform.setData('choice', 'B')
-        bPlatform.setDepth(0) // 캐릭터보다 뒤에 배치
+        bPlatform.setDepth(8) // 캐릭터보다 뒤에 배치
         bPlatform.body.updateFromGameObject()
 
         // 퀴즈 플랫폼의 중심과 반높이 저장 (양쪽 플랫폼은 동일 스케일/텍스처 가정)
@@ -617,8 +645,8 @@ export default class Game extends Phaser.Scene {
         const labelStyle = { color: '#000', fontSize: this.UI_LABEL_FONT_SIZE, fontStyle: 'bold', align: 'center', backgroundColor: '#ffffffbb', padding: { x: 6, y: 4 }, wordWrap: { width: 500 } }
         // 현재 퀴즈의 선택지 텍스트를 각 플랫폼 위에 표시
         const currentQuiz = this.quizzes[this.currentQuizIndex]
-        const aLabel = this.add.text(aPlatform.x, aPlatform.y - 40, 'A: \n' + currentQuiz.a, labelStyle).setOrigin(0.5, 0.5).setDepth(2).setLineSpacing(15)
-        const bLabel = this.add.text(bPlatform.x, bPlatform.y - 40, 'B: \n' + currentQuiz.b, labelStyle).setOrigin(0.5, 0.5).setDepth(2).setLineSpacing(15)
+        const aLabel = this.add.text(aPlatform.x, aPlatform.y - 40, 'A: \n' + currentQuiz.a, labelStyle).setOrigin(0.5, 0.5).setDepth(9).setLineSpacing(15)
+        const bLabel = this.add.text(bPlatform.x, bPlatform.y - 40, 'B: \n' + currentQuiz.b, labelStyle).setOrigin(0.5, 0.5).setDepth(9).setLineSpacing(15)
         aPlatform.setData('label', aLabel)
         bPlatform.setData('label', bLabel)
 
@@ -696,6 +724,7 @@ export default class Game extends Phaser.Scene {
 
         carrot.setActive(true)
         carrot.setVisible(true)
+        carrot.setDepth(8)
 
         this.add.existing(carrot)
 
