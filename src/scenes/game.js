@@ -1,6 +1,15 @@
 import Phaser from '../lib/phaser.js';
 import quizzes from '../game/quizzes.js'
 import { GAME_WIDTH, GAME_HEIGHT } from '../main.js'
+import GameOver01 from './gameover-01.js'
+import GameOver02 from './gameover-02.js'
+import GameOver03 from './gameover-03.js'
+import GameOver04 from './gameover-04.js'
+import GameOver05 from './gameover-05.js'
+import GameOver06 from './gameover-06.js'
+import GameOver07 from './gameover-07.js'
+import GameOver08 from './gameover-08.js'
+import GameOver09 from './gameover-09.js'
 
 export default class Game extends Phaser.Scene {
     // 게임 크기 기반 상수들
@@ -10,16 +19,25 @@ export default class Game extends Phaser.Scene {
     GAME_CENTER_Y = GAME_HEIGHT / 2
 
     // 플레이어 관련 상수
-    PLAYER_SCALE = 1.2
+    PLAYER_SCALE = 0.5
     PLAYER_JUMP_VELOCITY = -1300;
     PLAYER_MOVE_VELOCITY_LEFT = -GAME_WIDTH / 2;
     PLAYER_MOVE_VELOCITY_RIGHT = GAME_WIDTH / 2;
     CORRECT_ANSWER_BOOST = 2 // 정답 시 추가 점프력 배수 (더 높이 뛰기)
+    PLAYER_SKINS = [
+        { id: 'player01', min: 0, max: 2, stand: 'player01-stand', jump: 'player01-jump' },
+        { id: 'player02', min: 3, max: 4, stand: 'player02-stand', jump: 'player02-jump' },
+        { id: 'player03', min: 5, max: 6, stand: 'player03-stand', jump: 'player03-jump' },
+        { id: 'player04', min: 7, max: 8, stand: 'player04-stand', jump: 'player04-jump' }
+    ]
+    currentPlayerSkinId = null
+    playerStandTextureKey = 'player01-stand'
+    playerJumpTextureKey = 'player01-jump'
 
     // 플랫폼 관련 상수
     PLATFORM_SCALE = 1.3
-    PLATFORM_SPACING_HEIGHT = 340 //플랫폼 높이
-    PLATFORM_GAP_TWEAK = 30 // 간격을 조금 더 가깝게 만드는 보정치
+    PLATFORM_SPACING_HEIGHT = 320 //플랫폼 높이
+    PLATFORM_GAP_TWEAK = 40 // 간격을 조금 더 가깝게 만드는 보정치
     PLATFORM_X_MIN = GAME_WIDTH / 10 //플랫폼 X 최소값
     PLATFORM_X_MAX = GAME_WIDTH * 9 / 10 //플랫폼 X 최대값
 
@@ -33,7 +51,7 @@ export default class Game extends Phaser.Scene {
     QUIZ_PLATFORM_RIGHT_X = GAME_WIDTH - (GAME_WIDTH / 5) //퀴즈 플랫폼 우측 위치(게임 너비의 3/4)
     QUIZ_PLATFORM_Y_OFFSET = GAME_HEIGHT / 7 //퀴즈 플랫폼 위치 (더 위로 올림)
     QUIZ_ZONE_PADDING = this.PLATFORM_SPACING_HEIGHT //퀴즈 구역 패딩(플랫폼 간격과 동일)
-    QUIZ_INTERVAL = GAME_HEIGHT * 1.5   //다음 퀴즈까지의 간격(플레이어 높이의 2배)
+    QUIZ_INTERVAL = GAME_HEIGHT * 1   //다음 퀴즈까지의 간격(플레이어 높이의 2배)
 
     // 구름 관련 상수
     CLOUD_COUNT = 5
@@ -51,6 +69,20 @@ export default class Game extends Phaser.Scene {
     UI_FONT_SIZE = 70
     UI_QUESTION_FONT_SIZE = 70
     UI_LABEL_FONT_SIZE = 60
+
+    // 점수 및 결과 관련
+    quizScore = 0
+    GAME_OVER_SCENES = [
+        'gameover-01',
+        'gameover-02',
+        'gameover-03',
+        'gameover-04',
+        'gameover-05',
+        'gameover-06',
+        'gameover-07',
+        'gameover-08',
+        'gameover-09'
+    ]
 
 
 
@@ -104,6 +136,14 @@ export default class Game extends Phaser.Scene {
         this.quizInterval = this.QUIZ_INTERVAL;
         this.hasStartedFirstJump = false; // 첫 점프 상태 초기화
         this.wasTouchingGround = false; // 바닥 접촉 상태 초기화
+        this.currentQuizIndex = 0
+        this.quizzesTriggered = 0
+        this.quizScore = 0
+        this.isQuizActive = false
+        this.currentPlayerSkinId = null
+        this.playerStandTextureKey = 'player01-stand'
+        this.playerJumpTextureKey = 'player01-jump'
+        this.updatePlayerSkinByScore()
     }
 
     preload() {
@@ -123,8 +163,15 @@ export default class Game extends Phaser.Scene {
 
 
         // 플레이어 이미지 로드
-        this.load.image('bunny-stand', 'Players/character-01.png')
-        this.load.image('bunny-jump', 'Players/character-01.png')
+        this.load.image('player01-stand', 'Players/player01-stand.png')
+        this.load.image('player01-jump', 'Players/player01-jump.png')
+        this.load.image('player02-stand', 'Players/player02-stand.png')
+        this.load.image('player02-jump', 'Players/player02-jump.png')
+        this.load.image('player03-stand', 'Players/player03-stand.png')
+        this.load.image('player03-jump', 'Players/player03-jump.png')
+        this.load.image('player04-stand', 'Players/player04-stand.png')
+        this.load.image('player04-jump', 'Players/player04-jump.png')
+
 
         this.load.audio('jump', 'Audio/phaseJump2.ogg')
         this.load.audio('background-music', 'Audio/back-home.wav')
@@ -162,28 +209,28 @@ export default class Game extends Phaser.Scene {
         // 배경 이미지의 하단이 플랫폼 상단에 맞도록 Y 위치 계산
         // 이미지 중심 = 플랫폼 상단 - (이미지 높이 / 2) -> 이미지 하단이 플랫폼 상단에 맞춰짐
         const buildingImageY = platformTopY - (buildingHeight / 3)
-        const buildingImage = this.add.image(this.GAME_CENTER_X, buildingImageY, 'building-01').setScrollFactor(1, 0.2)
+        const buildingImage = this.add.image(this.GAME_CENTER_X, buildingImageY, 'building-01').setScrollFactor(1, 0.25)
         buildingImage.setDepth(3) // 기존 배경 위, 플랫폼 아래에 표시
         // buildingImage.setAlpha(0.9) // 투명도 조정
 
         const building2Texture = this.textures.get('building-02')
         const building2Height = building2Texture.source[0].height
         const building2ImageY = platformTopY - (building2Height / 3)
-        const building2Image = this.add.image(this.GAME_CENTER_X, building2ImageY, 'building-02').setScrollFactor(1, 0.1)
+        const building2Image = this.add.image(this.GAME_CENTER_X, building2ImageY, 'building-02').setScrollFactor(1, 0.19)
         building2Image.setDepth(2)
         // building2Image.setAlpha(1) // 투명도 조정
 
         const building3Texture = this.textures.get('building-03')
         const building3Height = building3Texture.source[0].height
         const building3ImageY = platformTopY - (building3Height / 3)
-        const building3Image = this.add.image(this.GAME_CENTER_X, building3ImageY, 'building-03').setScrollFactor(1, 0.05)
+        const building3Image = this.add.image(this.GAME_CENTER_X, building3ImageY, 'building-03').setScrollFactor(1, 0.12)
         building3Image.setDepth(1)
         // building2Image.setAlpha(1) // 투명도 조정
 
         const building4Texture = this.textures.get('building-04')
         const building4Height = building4Texture.source[0].height
         const building4ImageY = platformTopY - (building4Height / 3)
-        const building4Image = this.add.image(this.GAME_CENTER_X, building4ImageY, 'building-04').setScrollFactor(1, 0.03)
+        const building4Image = this.add.image(this.GAME_CENTER_X, building4ImageY, 'building-04').setScrollFactor(1, 0.07)
         building4Image.setDepth(0)
         // building2Image.setAlpha(1) // 투명도 조정
 
@@ -210,9 +257,8 @@ export default class Game extends Phaser.Scene {
             body.updateFromGameObject()
         }
 
-        // 캐릭터 생성 (바닥 플랫폼 위에서 시작)
-        // 플레이어 높이를 텍스처에서 직접 계산 (화면에 보이지 않게)
-        const playerTexture = this.textures.get('bunny-stand')
+
+        const playerTexture = this.textures.get(this.playerStandTextureKey)
         const playerHeight = playerTexture.source[0].height * this.PLAYER_SCALE
 
         // 플레이어를 플랫폼 위에 바로 서있게 배치 (플레이어의 발이 플랫폼 상단에 닿도록)
@@ -220,7 +266,7 @@ export default class Game extends Phaser.Scene {
         const playerStartY = platformTopY - (playerHeight / 2)
 
         // 플레이어를 먼저 보이지 않게 생성 (모든 설정 완료 후 표시)
-        this.player = this.physics.add.sprite(this.GAME_CENTER_X, playerStartY, 'bunny-stand').setScale(this.PLAYER_SCALE)
+        this.player = this.physics.add.sprite(this.GAME_CENTER_X, playerStartY, this.playerStandTextureKey).setScale(this.PLAYER_SCALE)
         this.player.setVisible(false) // 모든 설정이 완료될 때까지 숨김
         this.player.setDepth(10) // 플랫폼보다 앞에 배치
         this.player.body.checkCollision.up = false
@@ -259,6 +305,11 @@ export default class Game extends Phaser.Scene {
         const qStyle = { color: '#fff', fontSize: this.UI_QUESTION_FONT_SIZE, align: 'center', fontStyle: 'bold', backgroundColor: '#00000088', padding: { x: 10, y: 20 }, wordWrap: { width: this.GAME_WIDTH * 0.9 } }
         this.questionText = this.add.text(this.GAME_CENTER_X, 200, '', qStyle).setScrollFactor(0).setOrigin(0.5, 0.5).setDepth(11).setLineSpacing(25)
         this.questionText.setVisible(false)
+
+        const spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
+        spaceKey.once('down', () => {
+            this.time.delayedCall(0, () => this.scene.restart())
+        })
     }
 
     update() {
@@ -379,9 +430,9 @@ export default class Game extends Phaser.Scene {
 
                 this.player.setVelocityY(this.PLAYER_JUMP_VELOCITY)
 
-                this.player.setTexture('bunny-jump')
+                this.player.setTexture(this.playerJumpTextureKey)
 
-                // this.sound.play('jump')
+                this.sound.play('jump')
             }
             this.wasTouchingGround = true
         } else {
@@ -390,9 +441,9 @@ export default class Game extends Phaser.Scene {
 
 
         const vy = this.player.body.velocity.y
-        if (vy > 0 && this.player.texture.key !== 'bunny-stand') {
+        if (vy > 0 && this.player.texture.key !== this.playerStandTextureKey) {
             // 떨어질 때 대기 이미지로 변경
-            this.player.setTexture('bunny-stand')
+            this.player.setTexture(this.playerStandTextureKey)
         }
 
 
@@ -410,11 +461,7 @@ export default class Game extends Phaser.Scene {
 
         const bottomPlatform = this.findBottomMostPlatform()
         if (this.player.y > bottomPlatform.y + 1500) {
-            // 최종 점수 등록
-            this.registry.set('final-score', 'Game Over')
-            this.gameMusic.stop()
-
-            this.scene.start('game-over')
+            this.goToGameOverScene(this.quizScore + 1)
         }
     }
 
@@ -430,7 +477,7 @@ export default class Game extends Phaser.Scene {
 
         // 질문 표시 (선택지 텍스트는 각 플랫폼 위에 렌더링함)
         const quiz = this.quizzes[this.currentQuizIndex]
-        this.questionText.setText(`[${this.currentQuizIndex + 1}/10] \n ${quiz.question}`)
+        this.questionText.setText(`[${this.currentQuizIndex + 1}/8] \n ${quiz.question}`)
         this.questionText.setVisible(true)
 
         // 카메라 뷰 근처에 O/X 퀴즈 플랫폼 생성
@@ -516,25 +563,61 @@ export default class Game extends Phaser.Scene {
         this.quizZoneBottom = null
 
         if (!success) {
-            // 오답 선택 → 게임오버
-            this.registry.set('final-score', 'Wrong Answer!')
-            this.gameMusic.stop()
-            this.scene.start('game-over')
+            this.goToGameOverScene(this.quizScore + 1)
             return
         }
 
+        this.quizScore++
+        this.updatePlayerSkinByScore()
         // 다음 퀴즈로 진행 또는 승리 처리
         this.currentQuizIndex++
         if (this.currentQuizIndex >= this.quizzes.length) {
-            this.registry.set('final-score', 'You Win!')
-            this.gameMusic.stop()
-            this.scene.start('game-over')
+            this.goToGameOverScene(this.quizScore + 1)
             return
         }
 
         // 게임 진행 재개
         this.isQuizActive = false
         this.player.body.allowGravity = true
+    }
+
+    goToGameOverScene(scoreIndex) {
+        let targetScene
+
+        if (this.quizScore >= this.quizzes.length) {
+            targetScene = 'gameover-09'
+        } else {
+            const clampedIndex = Phaser.Math.Clamp(scoreIndex, 1, this.GAME_OVER_SCENES.length - 1)
+            targetScene = this.GAME_OVER_SCENES[clampedIndex - 1]
+        }
+
+        if (this.gameMusic) {
+            this.gameMusic.stop()
+        }
+        this.scene.start(targetScene)
+    }
+
+    getPlayerSkinForScore(score) {
+        for (const skin of this.PLAYER_SKINS) {
+            if (score >= skin.min && score <= skin.max) {
+                return skin
+            }
+        }
+        return this.PLAYER_SKINS[this.PLAYER_SKINS.length - 1]
+    }
+
+    updatePlayerSkinByScore() {
+        const skin = this.getPlayerSkinForScore(this.quizScore)
+        if (this.currentPlayerSkinId === skin.id) {
+            return
+        }
+        this.currentPlayerSkinId = skin.id
+        this.playerStandTextureKey = skin.stand
+        this.playerJumpTextureKey = skin.jump
+
+        if (this.player) {
+            this.player.setTexture(this.playerStandTextureKey)
+        }
     }
 
     spawnQuizPlatforms() {
@@ -611,8 +694,8 @@ export default class Game extends Phaser.Scene {
         const labelStyle = { color: '#000', fontSize: this.UI_LABEL_FONT_SIZE, fontStyle: 'bold', align: 'center', backgroundColor: '#ffffffbb', padding: { x: 6, y: 4 }, wordWrap: { width: 500 } }
         // 현재 퀴즈의 선택지 텍스트를 각 플랫폼 위에 표시
         const currentQuiz = this.quizzes[this.currentQuizIndex]
-        const aLabel = this.add.text(aPlatform.x, aPlatform.y - 40, 'A: \n' + currentQuiz.a, labelStyle).setOrigin(0.5, 0.5).setDepth(9).setLineSpacing(15)
-        const bLabel = this.add.text(bPlatform.x, bPlatform.y - 40, 'B: \n' + currentQuiz.b, labelStyle).setOrigin(0.5, 0.5).setDepth(9).setLineSpacing(15)
+        const aLabel = this.add.text(aPlatform.x, aPlatform.y - 40, 'A \n' + currentQuiz.a, labelStyle).setOrigin(0.5, 0.5).setDepth(9).setLineSpacing(15)
+        const bLabel = this.add.text(bPlatform.x, bPlatform.y - 40, 'B \n' + currentQuiz.b, labelStyle).setOrigin(0.5, 0.5).setDepth(9).setLineSpacing(15)
         aPlatform.setData('label', aLabel)
         bPlatform.setData('label', bLabel)
 
