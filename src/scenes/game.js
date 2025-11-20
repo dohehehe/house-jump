@@ -1,11 +1,8 @@
 import Phaser from '../lib/phaser.js';
-import Carrot from '../game/carrot.js'
 import quizzes from '../game/quizzes.js'
 import { GAME_WIDTH, GAME_HEIGHT } from '../main.js'
 
 export default class Game extends Phaser.Scene {
-    carrotCollected = 0
-
     // 게임 크기 기반 상수들
     GAME_WIDTH = GAME_WIDTH
     GAME_HEIGHT = GAME_HEIGHT
@@ -72,12 +69,6 @@ export default class Game extends Phaser.Scene {
     /** @type {Phaser.GameObjects.Group} */
     clouds
 
-    /** @type {Phaser.Physics.Arcade.Group} */
-    carrots
-
-    /** @type {Phaser.GameObjects.Text} */
-    carrotsCollectedText
-
     /** @type {Phaser.Sound.NoAudioSound} */
     gameMusic
 
@@ -110,7 +101,6 @@ export default class Game extends Phaser.Scene {
     }
 
     init() {
-        this.carrotCollected = 0;
         this.quizInterval = this.QUIZ_INTERVAL;
         this.hasStartedFirstJump = false; // 첫 점프 상태 초기화
         this.wasTouchingGround = false; // 바닥 접촉 상태 초기화
@@ -136,10 +126,7 @@ export default class Game extends Phaser.Scene {
         this.load.image('bunny-stand', 'Players/character-01.png')
         this.load.image('bunny-jump', 'Players/character-01.png')
 
-        this.load.image('coin', 'Items/coin.png')
-
         this.load.audio('jump', 'Audio/phaseJump2.ogg')
-        this.load.audio('collect', "Audio/powerUp5.ogg")
         this.load.audio('background-music', 'Audio/back-home.wav')
 
         this.cursors = this.input.keyboard.createCursorKeys();
@@ -203,11 +190,6 @@ export default class Game extends Phaser.Scene {
 
         //일반 플랫폼 생성
         this.platforms = this.physics.add.staticGroup()
-        // 코인 그룹은 플랫폼 위 스폰에 사용되므로 루프 전에 생성
-        this.carrots = this.physics.add.group({
-            classType: Carrot
-        })
-
         // 바닥 플랫폼 상단보다 위에서 일반 플랫폼 시작 (간격 확보)
         const firstPlatformY = platformTopY - this.PLATFORM_SPACING_HEIGHT
 
@@ -226,11 +208,6 @@ export default class Game extends Phaser.Scene {
             /** @type {Phaser.Physics.Arcade.StaticBody} */
             const body = platform.body
             body.updateFromGameObject()
-
-            // 초기 생성 시 일정 확률로 코인 생성
-            if (Phaser.Math.FloatBetween(0, 1) < 0.35) {
-                this.addCarrotAbove(platform)
-            }
         }
 
         // 캐릭터 생성 (바닥 플랫폼 위에서 시작)
@@ -269,13 +246,6 @@ export default class Game extends Phaser.Scene {
         this.time.delayedCall(0, () => {
             this.player.setVisible(true)
         })
-
-        this.physics.add.collider(this.platforms, this.carrots)
-
-        this.physics.add.overlap(this.player, this.carrots, this.handleCollectCarrot, undefined, this)
-
-        const style = { color: '#000', fontSize: this.UI_FONT_SIZE, fontStyle: 'bold', backgroundColor: '#ffffff', align: 'center' }
-        this.carrotsCollectedText = this.add.text(this.GAME_CENTER_X, 10, 'Coin: 0', style).setScrollFactor(0).setOrigin(0.5, 0).setDepth(11)
 
         this.gameMusic = this.sound.add('background-music', { loop: true })
         // this.gameMusic.play()
@@ -367,10 +337,6 @@ export default class Game extends Phaser.Scene {
                 platform.setTexture(platformType)
                 platform.body.updateFromGameObject()
 
-                // 재활용 시에도 일정 확률로 코인 생성
-                if (Phaser.Math.FloatBetween(0, 1) < 0.4) {
-                    this.addCarrotAbove(platform)
-                }
             }
         })
 
@@ -445,7 +411,7 @@ export default class Game extends Phaser.Scene {
         const bottomPlatform = this.findBottomMostPlatform()
         if (this.player.y > bottomPlatform.y + 1500) {
             // 최종 점수 등록
-            this.registry.set('final-score', this.carrotsCollectedText.text)
+            this.registry.set('final-score', 'Game Over')
             this.gameMusic.stop()
 
             this.scene.start('game-over')
@@ -711,41 +677,6 @@ export default class Game extends Phaser.Scene {
         else if (sprit.x > gameWidth + halfWidth) {
             sprit.x = -halfWidth
         }
-    }
-
-    /**
-     * @param {Phaser.GameObjects.Sprite} sprite 
-     */
-    addCarrotAbove(sprite) {
-        const y = sprite.y - sprite.displayHeight;
-
-        /** @type {Phaser.Physics.Arcade.Sprite} */
-        const carrot = this.carrots.get(sprite.x, y, 'coin')
-
-        carrot.setActive(true)
-        carrot.setVisible(true)
-        carrot.setDepth(8)
-
-        this.add.existing(carrot)
-
-        // update the physics body size
-        carrot.body.setSize(carrot.width, carrot.height)
-
-        this.physics.world.enable(carrot)
-
-        return carrot
-    }
-
-    /**
-     * @param {Phaser.Physics.Arcade.Sprite} player 
-     * @param {Carrot} carrot 
-     */
-    handleCollectCarrot(player, carrot) {
-        //hide from display
-        this.carrots.killAndHide(carrot)
-        this.physics.world.disableBody(carrot.body)
-        this.carrotCollected++
-        this.carrotsCollectedText.text = `Coins: ${this.carrotCollected}`
     }
 
     findBottomMostPlatform() {
