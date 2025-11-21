@@ -7,7 +7,7 @@ export default class GameOver06 extends Phaser.Scene {
 
     preload() {
         this.load.setBaseURL('assets/')
-        this.load.image('gameover-bg', 'Result/fail-02.png')
+        this.load.image('gameover-bg', 'Result/fail-02.jpg')
         this.load.image('gameover-title', 'Result/gameover-title.png')
         this.load.image('restart', 'Result/restart.png')
         this.load.image('book-closed', 'Result/book-closed.png')

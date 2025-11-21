@@ -24,15 +24,9 @@ export default class Game extends Phaser.Scene {
     PLAYER_MOVE_VELOCITY_LEFT = -GAME_WIDTH / 2;
     PLAYER_MOVE_VELOCITY_RIGHT = GAME_WIDTH / 2;
     CORRECT_ANSWER_BOOST = 2 // 정답 시 추가 점프력 배수 (더 높이 뛰기)
-    PLAYER_SKINS = [
-        { id: 'player01', min: 0, max: 2, stand: 'player01-stand', jump: 'player01-jump' },
-        { id: 'player02', min: 3, max: 4, stand: 'player02-stand', jump: 'player02-jump' },
-        { id: 'player03', min: 5, max: 6, stand: 'player03-stand', jump: 'player03-jump' },
-        { id: 'player04', min: 7, max: 8, stand: 'player04-stand', jump: 'player04-jump' }
-    ]
-    currentPlayerSkinId = null
-    playerStandTextureKey = 'player01-stand'
-    playerJumpTextureKey = 'player01-jump'
+    playerStandTextureKey = 'player-stand'
+    playerJumpLeftTextureKey = 'player-jump-left'
+    playerJumpRightTextureKey = 'player-jump-right'
 
     // 플랫폼 관련 상수
     PLATFORM_SCALE = 1.3
@@ -140,10 +134,9 @@ export default class Game extends Phaser.Scene {
         this.quizzesTriggered = 0
         this.quizScore = 0
         this.isQuizActive = false
-        this.currentPlayerSkinId = null
-        this.playerStandTextureKey = 'player01-stand'
-        this.playerJumpTextureKey = 'player01-jump'
-        this.updatePlayerSkinByScore()
+        this.playerStandTextureKey = 'player-stand'
+        this.playerJumpLeftTextureKey = 'player-jump-left'
+        this.playerJumpRightTextureKey = 'player-jump-right'
     }
 
     preload() {
@@ -163,14 +156,10 @@ export default class Game extends Phaser.Scene {
 
 
         // 플레이어 이미지 로드
-        this.load.image('player01-stand', 'Players/player01-stand.png')
-        this.load.image('player01-jump', 'Players/player01-jump.png')
-        this.load.image('player02-stand', 'Players/player02-stand.png')
-        this.load.image('player02-jump', 'Players/player02-jump.png')
-        this.load.image('player03-stand', 'Players/player03-stand.png')
-        this.load.image('player03-jump', 'Players/player03-jump.png')
-        this.load.image('player04-stand', 'Players/player04-stand.png')
-        this.load.image('player04-jump', 'Players/player04-jump.png')
+        this.load.image('player-stand', 'Players/player-stand.png')
+        this.load.image('player-jump-left', 'Players/player-jump-left.png')
+        this.load.image('player-jump-right', 'Players/player-jump-right.png')
+
 
 
         this.load.audio('jump', 'Audio/phaseJump2.ogg')
@@ -306,9 +295,8 @@ export default class Game extends Phaser.Scene {
         this.questionText = this.add.text(this.GAME_CENTER_X, 200, '', qStyle).setScrollFactor(0).setOrigin(0.5, 0.5).setDepth(11).setLineSpacing(25)
         this.questionText.setVisible(false)
 
-        const spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
-        spaceKey.once('down', () => {
-            this.time.delayedCall(0, () => this.scene.restart())
+        this.input.keyboard.once('keyup-SPACE', () => {
+            this.scene.restart()
         })
     }
 
@@ -399,14 +387,14 @@ export default class Game extends Phaser.Scene {
         this.groundPlatform.children.entries.forEach(platform => {
             if (!platform.body || !this.player.body) return
             const playerBottom = this.player.body.bottom
-            const platformTop = platform.body.top
+            const platformTop = platform.body.top - 750
             const playerCenterX = this.player.body.center.x
             const platformLeft = platform.body.left
             const platformRight = platform.body.right
 
             // 플레이어가 바닥 플랫폼 위에 있고, 좌우 범위 내에 있는지 확인 (더 넓은 범위로 감지)
-            const isOnTop = playerBottom >= platformTop - 10 && playerBottom <= platformTop + 15
-            const isInRange = playerCenterX >= platformLeft - 50 && playerCenterX <= platformRight + 50
+            const isOnTop = playerBottom >= platformTop - 10 && playerBottom <= platformTop
+            const isInRange = playerCenterX >= platformLeft - 10 && playerCenterX <= platformRight + 10
 
             if (isOnTop && isInRange) {
                 isOnGroundPlatform = true
@@ -430,7 +418,7 @@ export default class Game extends Phaser.Scene {
 
                 this.player.setVelocityY(this.PLAYER_JUMP_VELOCITY)
 
-                this.player.setTexture(this.playerJumpTextureKey)
+                this.player.setTexture(this.playerJumpRightTextureKey)
 
                 this.sound.play('jump')
             }
@@ -449,9 +437,15 @@ export default class Game extends Phaser.Scene {
 
         if (this.cursors.left.isDown && !touchingDown) {
             this.player.setVelocityX(this.PLAYER_MOVE_VELOCITY_LEFT)
+            if (this.player.texture.key !== this.playerJumpLeftTextureKey) {
+                this.player.setTexture(this.playerJumpLeftTextureKey)
+            }
         }
         else if (this.cursors.right.isDown && !touchingDown) {
             this.player.setVelocityX(this.PLAYER_MOVE_VELOCITY_RIGHT)
+            if (this.player.texture.key !== this.playerJumpRightTextureKey) {
+                this.player.setTexture(this.playerJumpRightTextureKey)
+            }
         }
         else {
             this.player.setVelocityX(0)
@@ -461,7 +455,7 @@ export default class Game extends Phaser.Scene {
 
         const bottomPlatform = this.findBottomMostPlatform()
         if (this.player.y > bottomPlatform.y + 1500) {
-            this.goToGameOverScene(this.quizScore + 1)
+            this.goToGameOverScene(this.isQuizActive)
         }
     }
 
@@ -563,16 +557,15 @@ export default class Game extends Phaser.Scene {
         this.quizZoneBottom = null
 
         if (!success) {
-            this.goToGameOverScene(this.quizScore + 1)
+            this.goToGameOverScene(true)
             return
         }
 
         this.quizScore++
-        this.updatePlayerSkinByScore()
         // 다음 퀴즈로 진행 또는 승리 처리
         this.currentQuizIndex++
         if (this.currentQuizIndex >= this.quizzes.length) {
-            this.goToGameOverScene(this.quizScore + 1)
+            this.goToGameOverScene(false)
             return
         }
 
@@ -581,15 +574,8 @@ export default class Game extends Phaser.Scene {
         this.player.body.allowGravity = true
     }
 
-    goToGameOverScene(scoreIndex) {
-        let targetScene
-
-        if (this.quizScore >= this.quizzes.length) {
-            targetScene = 'gameover-09'
-        } else {
-            const clampedIndex = Phaser.Math.Clamp(scoreIndex, 1, this.GAME_OVER_SCENES.length - 1)
-            targetScene = this.GAME_OVER_SCENES[clampedIndex - 1]
-        }
+    goToGameOverScene(includeCurrentAttempt = false) {
+        const targetScene = this.resolveGameOverScene(includeCurrentAttempt)
 
         if (this.gameMusic) {
             this.gameMusic.stop()
@@ -597,27 +583,20 @@ export default class Game extends Phaser.Scene {
         this.scene.start(targetScene)
     }
 
-    getPlayerSkinForScore(score) {
-        for (const skin of this.PLAYER_SKINS) {
-            if (score >= skin.min && score <= skin.max) {
-                return skin
-            }
-        }
-        return this.PLAYER_SKINS[this.PLAYER_SKINS.length - 1]
-    }
+    resolveGameOverScene(includeCurrentAttempt = false) {
+        const attemptBonus = includeCurrentAttempt ? 1 : 0
+        const effectiveScore = this.quizScore + attemptBonus
 
-    updatePlayerSkinByScore() {
-        const skin = this.getPlayerSkinForScore(this.quizScore)
-        if (this.currentPlayerSkinId === skin.id) {
-            return
+        if (effectiveScore >= this.quizzes.length) {
+            return 'gameover-09'
         }
-        this.currentPlayerSkinId = skin.id
-        this.playerStandTextureKey = skin.stand
-        this.playerJumpTextureKey = skin.jump
 
-        if (this.player) {
-            this.player.setTexture(this.playerStandTextureKey)
-        }
+        const clampedIndex = Phaser.Math.Clamp(
+            Math.max(effectiveScore, 1),
+            1,
+            this.GAME_OVER_SCENES.length - 1
+        )
+        return this.GAME_OVER_SCENES[clampedIndex - 1]
     }
 
     spawnQuizPlatforms() {

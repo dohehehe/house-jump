@@ -15,9 +15,9 @@ const quizzes = [
     correct: 'A'
   },
   {
-    question: '\'딱지\'는 무엇을 의미할까요?',
-    a: '전문가 추천 종목',
-    b: '재개발 재건축 구역 지정',
+    question: '\'특공\'은 무엇을 의미할까요?',
+    a: '특별공재',
+    b: '특별공급',
     correct: 'B'
   },
   {
@@ -39,9 +39,9 @@ const quizzes = [
     correct: 'A'
   },
   {
-    question: '\'브역대신평초\'에 \n 포함되지 않는 조건은?',
-    a: '평지',
-    b: '대도시',
+    question: '\'브역대신평초\'에 \n 포함되는 조건은?',
+    a: '대도시',
+    b: '평지',
     correct: 'B'
   },
   {
