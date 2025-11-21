@@ -20,13 +20,14 @@ export default class Game extends Phaser.Scene {
 
     // 플레이어 관련 상수
     PLAYER_SCALE = 0.5
-    PLAYER_JUMP_VELOCITY = -1300;
+    PLAYER_JUMP_VELOCITY = -1250;
     PLAYER_MOVE_VELOCITY_LEFT = -GAME_WIDTH / 2;
     PLAYER_MOVE_VELOCITY_RIGHT = GAME_WIDTH / 2;
-    CORRECT_ANSWER_BOOST = 2 // 정답 시 추가 점프력 배수 (더 높이 뛰기)
+    CORRECT_ANSWER_BOOST = 8 // 정답 시 추가 점프력 배수 (더 높이 뛰기)
     playerStandTextureKey = 'player-stand'
     playerJumpLeftTextureKey = 'player-jump-left'
     playerJumpRightTextureKey = 'player-jump-right'
+    playerFallTextureKey = 'player-fall'
 
     // 플랫폼 관련 상수
     PLATFORM_SCALE = 1.3
@@ -111,6 +112,8 @@ export default class Game extends Phaser.Scene {
     quizPlatforms
     /** @type {Phaser.GameObjects.Text} */
     questionText
+    /** @type {Phaser.GameObjects.Text} */
+    questionNumberText
     /** @type {number|null} */
     quizZoneTop = null
     /** @type {number|null} */
@@ -159,7 +162,7 @@ export default class Game extends Phaser.Scene {
         this.load.image('player-stand', 'Players/player-stand.png')
         this.load.image('player-jump-left', 'Players/player-jump-left.png')
         this.load.image('player-jump-right', 'Players/player-jump-right.png')
-
+        this.load.image('player-fall', 'Players/player-falling.png')
 
 
         this.load.audio('jump', 'Audio/phaseJump2.ogg')
@@ -291,8 +294,12 @@ export default class Game extends Phaser.Scene {
         // overlap은 제거하고 collider만 사용
 
         // 질문 텍스트 UI(초기에는 숨김)
-        const qStyle = { color: '#fff', fontSize: this.UI_QUESTION_FONT_SIZE, align: 'center', fontStyle: 'bold', backgroundColor: '#00000088', padding: { x: 10, y: 20 }, wordWrap: { width: this.GAME_WIDTH * 0.9 } }
-        this.questionText = this.add.text(this.GAME_CENTER_X, 200, '', qStyle).setScrollFactor(0).setOrigin(0.5, 0.5).setDepth(11).setLineSpacing(25)
+        const qNumberStyle = { color: '#fff', fontSize: this.UI_QUESTION_FONT_SIZE * 0.8, align: 'center', fontStyle: 'bold', fontFamily: 'NanumSquareNeoOTF-Hv', backgroundColor: '#00000088', padding: { x: 10, y: 20 } }
+        this.questionNumberText = this.add.text(this.GAME_CENTER_X, 80, '', qNumberStyle).setScrollFactor(0).setOrigin(0.5, 0.5).setDepth(11)
+        this.questionNumberText.setVisible(false)
+
+        const qStyle = { color: '#fff', fontSize: this.UI_QUESTION_FONT_SIZE, align: 'center', fontStyle: 'bold', fontFamily: 'NanumSquareNeoOTF-Bd', backgroundColor: '#00000088', padding: { x: 10, y: 20 } }
+        this.questionText = this.add.text(this.GAME_CENTER_X, 150, '', qStyle).setScrollFactor(0).setOrigin(0.5, 0).setDepth(11).setLineSpacing(25)
         this.questionText.setVisible(false)
 
         this.input.keyboard.once('keyup-SPACE', () => {
@@ -387,7 +394,7 @@ export default class Game extends Phaser.Scene {
         this.groundPlatform.children.entries.forEach(platform => {
             if (!platform.body || !this.player.body) return
             const playerBottom = this.player.body.bottom
-            const platformTop = platform.body.top - 750
+            const platformTop = platform.body.top - 1050
             const playerCenterX = this.player.body.center.x
             const platformLeft = platform.body.left
             const platformRight = platform.body.right
@@ -403,6 +410,11 @@ export default class Game extends Phaser.Scene {
 
         // 바닥에 닿았을 때 (touchingDown 또는 바닥 플랫폼 위에 있을 때)
         if (touchingDown || isOnGroundPlatform) {
+            // 바닥에 닿았을 때 stand 이미지로 변경 (처음 시작할 때만 stand)
+            if (this.player.texture.key !== this.playerStandTextureKey && this.player.texture.key !== this.playerJumpLeftTextureKey && this.player.texture.key !== this.playerJumpRightTextureKey) {
+                this.player.setTexture(this.playerStandTextureKey)
+            }
+
             // 이전 프레임에서 바닥에 닿지 않았고, 지금 닿았을 때만 점프 (중복 점프 방지)
             if (!this.wasTouchingGround) {
                 // 퀴즈 플랫폼 착지 확인
@@ -425,13 +437,6 @@ export default class Game extends Phaser.Scene {
             this.wasTouchingGround = true
         } else {
             this.wasTouchingGround = false
-        }
-
-
-        const vy = this.player.body.velocity.y
-        if (vy > 0 && this.player.texture.key !== this.playerStandTextureKey) {
-            // 떨어질 때 대기 이미지로 변경
-            this.player.setTexture(this.playerStandTextureKey)
         }
 
 
@@ -471,7 +476,9 @@ export default class Game extends Phaser.Scene {
 
         // 질문 표시 (선택지 텍스트는 각 플랫폼 위에 렌더링함)
         const quiz = this.quizzes[this.currentQuizIndex]
-        this.questionText.setText(`[${this.currentQuizIndex + 1}/8] \n ${quiz.question}`)
+        this.questionNumberText.setText(`[${this.currentQuizIndex + 1}/8]`)
+        this.questionNumberText.setVisible(true)
+        this.questionText.setText(quiz.question)
         this.questionText.setVisible(true)
 
         // 카메라 뷰 근처에 O/X 퀴즈 플랫폼 생성
@@ -545,12 +552,15 @@ export default class Game extends Phaser.Scene {
     endQuiz(success) {
         // 퀴즈 플랫폼과 라벨 정리
         this.quizPlatforms.getChildren().forEach(p => {
-            const lbl = p.getData('label')
-            if (lbl) lbl.destroy()
+            const letterLabel = p.getData('letterLabel')
+            const textLabel = p.getData('textLabel')
+            if (letterLabel) letterLabel.destroy()
+            if (textLabel) textLabel.destroy()
             // 그룹에서 플랫폼 제거
             this.quizPlatforms.remove(p, true, true)
         })
         this.questionText.setVisible(false)
+        this.questionNumberText.setVisible(false)
 
         // 퀴즈 구역 예약 해제
         this.quizZoneTop = null
@@ -670,13 +680,22 @@ export default class Game extends Phaser.Scene {
         this.quizCenterY = y
         this.quizPlatformHalfHeight = (aPlatform.body && (aPlatform.body.halfHeight || aPlatform.body.height / 2)) || (aPlatform.displayHeight / 2)
 
-        const labelStyle = { color: '#000', fontSize: this.UI_LABEL_FONT_SIZE, fontStyle: 'bold', align: 'center', backgroundColor: '#ffffffbb', padding: { x: 6, y: 4 }, wordWrap: { width: 500 } }
+        const letterStyle = { color: '#000', fontSize: this.UI_LABEL_FONT_SIZE, fontStyle: 'bold', fontFamily: 'NanumSquareNeoOTF-Hv', align: 'center', backgroundColor: '#ffffffbb', padding: { x: 6, y: 4 } }
+        const labelStyle = { color: '#000', fontSize: this.UI_LABEL_FONT_SIZE, fontStyle: 'bold', fontFamily: 'NanumSquareNeoOTF-Bd', align: 'center', backgroundColor: '#ffffffbb', padding: { x: 6, y: 4 } }
         // 현재 퀴즈의 선택지 텍스트를 각 플랫폼 위에 표시
         const currentQuiz = this.quizzes[this.currentQuizIndex]
-        const aLabel = this.add.text(aPlatform.x, aPlatform.y - 40, 'A \n' + currentQuiz.a, labelStyle).setOrigin(0.5, 0.5).setDepth(9).setLineSpacing(15)
-        const bLabel = this.add.text(bPlatform.x, bPlatform.y - 40, 'B \n' + currentQuiz.b, labelStyle).setOrigin(0.5, 0.5).setDepth(9).setLineSpacing(15)
-        aPlatform.setData('label', aLabel)
-        bPlatform.setData('label', bLabel)
+
+        // A 라벨: 'A'는 Hv 폰트, 선택지 내용은 Bd 폰트
+        const aLetterLabel = this.add.text(aPlatform.x, aPlatform.y - 120, 'A', letterStyle).setOrigin(0.5, 0).setDepth(9)
+        const aTextLabel = this.add.text(aPlatform.x, aPlatform.y - 10, currentQuiz.a, labelStyle).setOrigin(0.5, 0).setDepth(9).setLineSpacing(15)
+        aPlatform.setData('letterLabel', aLetterLabel)
+        aPlatform.setData('textLabel', aTextLabel)
+
+        // B 라벨: 'B'는 Hv 폰트, 선택지 내용은 Bd 폰트
+        const bLetterLabel = this.add.text(bPlatform.x, bPlatform.y - 120, 'B', letterStyle).setOrigin(0.5, 0).setDepth(9)
+        const bTextLabel = this.add.text(bPlatform.x, bPlatform.y - 10, currentQuiz.b, labelStyle).setOrigin(0.5, 0).setDepth(9).setLineSpacing(15)
+        bPlatform.setData('letterLabel', bLetterLabel)
+        bPlatform.setData('textLabel', bTextLabel)
 
         // // 퀴즈 구역 범위 정의(일반 플랫폼 스폰 금지)
         const padding = this.QUIZ_ZONE_PADDING

@@ -51,7 +51,7 @@ export default class GameOver09 extends Phaser.Scene {
         })
 
         const restartTexture = this.textures.get('restart')
-        const restart = this.add.image(width * 0.5, height * 0.5, 'restart')
+        const restart = this.add.image(width * 0.5, height * 0.7, 'restart')
             .setOrigin(0.5)
             .setDisplaySize(width, height)
             .setAlpha(0)
