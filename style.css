@@ -13,6 +13,18 @@
 }
 
 body {
-  background-color: #000;
+  background-color: white;
   margin: 0;
+  box-shadow: inset 0 0 10px 10px red, 0 0 10px 10px blue;
+
+  /* & canvas {
+    transform: rotate(90deg);
+    transform-origin: right;
+    position: fixed;
+    margin: 0;
+    left: -140px;
+    top: 180px;
+    height: 100vw;
+
+  } */
 }

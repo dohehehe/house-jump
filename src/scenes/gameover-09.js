@@ -7,8 +7,8 @@ export default class GameOver09 extends Phaser.Scene {
 
     preload() {
         this.load.setBaseURL('assets/')
-        this.load.image('gameover-bg', 'Result/win.png')
-        this.load.image('gameover-title', 'Result/win-title.png')
+        this.load.image('gameover-bg-09', 'Result/win.png')
+        this.load.image('gameover-title-09', 'Result/win-title.png')
         this.load.image('restart', 'Result/restart.png')
     }
 
@@ -16,7 +16,7 @@ export default class GameOver09 extends Phaser.Scene {
         const width = this.scale.width
         const height = this.scale.height
 
-        const bg = this.add.image(width * 0.5, height * 0.5, 'gameover-bg')
+        const bg = this.add.image(width * 0.5, height * 0.5, 'gameover-bg-09')
             .setOrigin(0.5)
             .setDisplaySize(width, height)
             .setAlpha(0)
@@ -28,14 +28,14 @@ export default class GameOver09 extends Phaser.Scene {
             ease: 'Quad.easeOut'
         })
 
-        const titleTexture = this.textures.get('gameover-title')
+        const titleTexture = this.textures.get('gameover-title-09')
         const titleFrame = titleTexture.get()
         const titleOriginalWidth = titleFrame.width
         const titleOriginalHeight = titleFrame.height
         const titleScale = width / titleOriginalWidth
         const titleDisplayHeight = titleOriginalHeight * titleScale
 
-        const title = this.add.image(width * 0.5, 0, 'gameover-title')
+        const title = this.add.image(width * 0.5, 0, 'gameover-title-09')
             .setOrigin(0.5, 0)
             .setDisplaySize(width, titleDisplayHeight)
             .setAlpha(0)

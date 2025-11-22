@@ -39,9 +39,9 @@ const quizzes = [
     correct: 'A'
   },
   {
-    question: '\'브역대신평초\'에 \n 포함되는 조건은?',
-    a: '대도시',
-    b: '평지',
+    question: '\'선당후곰\'는 무엇을 의미할까요?',
+    a: '선당근 후곰탕',
+    b: '선당첨 후고민',
     correct: 'B'
   },
   {

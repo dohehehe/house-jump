@@ -172,6 +172,16 @@ export default class Game extends Phaser.Scene {
     }
 
     create() {
+        // create()가 호출될 때도 확실히 초기화 (scene.restart()나 재시작 시를 대비)
+        // scene.start()가 init()을 호출하지 않을 수 있으므로 여기서도 초기화 보장
+        this.quizInterval = this.QUIZ_INTERVAL;
+        this.hasStartedFirstJump = false;
+        this.wasTouchingGround = false;
+        this.currentQuizIndex = 0;
+        this.quizzesTriggered = 0;
+        this.quizScore = 0; // 항상 0으로 리셋
+        this.isQuizActive = false;
+
         var image = this.add.image(this.GAME_CENTER_X, this.GAME_CENTER_Y, 'background').setScrollFactor(1, 0)
 
         var image2 = this.add.image(this.GAME_CENTER_X, this.GAME_CENTER_Y, 'background').setScrollFactor(1, 0).setDepth(5).setAlpha(0.3);
@@ -454,13 +464,20 @@ export default class Game extends Phaser.Scene {
         }
         else {
             this.player.setVelocityX(0)
+            // 좌우 키를 누르지 않고 바닥에 닿지 않았으며, 아래로 떨어질 때 falling 이미지로 변경
+            if (!touchingDown && !isOnGroundPlatform && this.player.body.velocity.y > 0) {
+                if (this.player.texture.key !== this.playerFallTextureKey) {
+                    this.player.setTexture(this.playerFallTextureKey)
+                }
+            }
         }
 
         this.horizontalWrap(this.player)
 
         const bottomPlatform = this.findBottomMostPlatform()
         if (this.player.y > bottomPlatform.y + 1500) {
-            this.goToGameOverScene(this.isQuizActive)
+            console.log('Player fell - quizScore:', this.quizScore)
+            this.goToGameOverScene()
         }
     }
 
@@ -567,15 +584,20 @@ export default class Game extends Phaser.Scene {
         this.quizZoneBottom = null
 
         if (!success) {
-            this.goToGameOverScene(true)
+            // 틀렸을 때는 현재 quizScore 그대로 사용 (아직 증가하지 않았으므로)
+            console.log('Quiz failed - quizScore:', this.quizScore)
+            this.goToGameOverScene()
             return
         }
 
         this.quizScore++
+        console.log('Quiz correct - quizScore increased to:', this.quizScore)
         // 다음 퀴즈로 진행 또는 승리 처리
         this.currentQuizIndex++
         if (this.currentQuizIndex >= this.quizzes.length) {
-            this.goToGameOverScene(false)
+            // 모든 퀴즈를 맞췄을 때 (quizScore는 이미 증가했으므로 8)
+            console.log('All quizzes completed - quizScore:', this.quizScore)
+            this.goToGameOverScene()
             return
         }
 
@@ -584,29 +606,38 @@ export default class Game extends Phaser.Scene {
         this.player.body.allowGravity = true
     }
 
-    goToGameOverScene(includeCurrentAttempt = false) {
-        const targetScene = this.resolveGameOverScene(includeCurrentAttempt)
+    goToGameOverScene() {
+        const targetScene = this.resolveGameOverScene()
+        console.log('goToGameOverScene - quizScore:', this.quizScore, 'targetScene:', targetScene)
 
         if (this.gameMusic) {
             this.gameMusic.stop()
         }
+        // game scene을 중지하고 gameover scene을 시작
+        // 이렇게 하면 다음에 game scene이 시작될 때 init()이 확실히 호출됨
+        this.scene.stop('game')
         this.scene.start(targetScene)
     }
 
-    resolveGameOverScene(includeCurrentAttempt = false) {
-        const attemptBonus = includeCurrentAttempt ? 1 : 0
-        const effectiveScore = this.quizScore + attemptBonus
+    resolveGameOverScene() {
+        // quizScore는 현재까지 맞춘 퀴즈 개수
+        // 퀴즈를 틀리거나 추락했을 때의 현재 점수를 기준으로 gameover scene 결정
+        // 0개 맞춤 -> gameover-01, 1개 맞춤 -> gameover-02, ..., 8개 맞춤 -> gameover-09
+        const score = this.quizScore
+        console.log('resolveGameOverScene - quizScore:', score, 'quizzes.length:', this.quizzes.length)
 
-        if (effectiveScore >= this.quizzes.length) {
+        // 모든 퀴즈를 맞췄거나 그 이상이면 gameover-09
+        if (score >= this.quizzes.length) {
+            console.log('All quizzes completed, returning gameover-09')
             return 'gameover-09'
         }
 
-        const clampedIndex = Phaser.Math.Clamp(
-            Math.max(effectiveScore, 1),
-            1,
-            this.GAME_OVER_SCENES.length - 1
-        )
-        return this.GAME_OVER_SCENES[clampedIndex - 1]
+        // score를 0~8 사이로 클램프하여 배열 인덱스로 사용
+        // score가 0이면 gameover-01 (인덱스 0), score가 1이면 gameover-02 (인덱스 1), ...
+        const clampedIndex = Phaser.Math.Clamp(score, 0, this.GAME_OVER_SCENES.length - 1)
+        const targetScene = this.GAME_OVER_SCENES[clampedIndex]
+        console.log('resolveGameOverScene - clampedIndex:', clampedIndex, 'targetScene:', targetScene)
+        return targetScene
     }
 
     spawnQuizPlatforms() {

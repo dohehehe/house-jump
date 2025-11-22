@@ -7,18 +7,18 @@ export default class GameOver06 extends Phaser.Scene {
 
     preload() {
         this.load.setBaseURL('assets/')
-        this.load.image('gameover-bg', 'Result/fail-02.jpg')
+        this.load.image('gameover-bg-06', 'Result/fail-02.jpg')
         this.load.image('gameover-title', 'Result/gameover-title.png')
         this.load.image('restart', 'Result/restart.png')
         this.load.image('book-closed', 'Result/book-closed.png')
-        this.load.image('book-open', 'Result/book-open-06.png')
+        this.load.image('book-open-06', 'Result/book-open-06.png')
     }
 
     create() {
         const width = this.scale.width
         const height = this.scale.height
 
-        const bg = this.add.image(width * 0.5, height * 0.5, 'gameover-bg')
+        const bg = this.add.image(width * 0.5, height * 0.5, 'gameover-bg-06')
             .setOrigin(0.5)
             .setDisplaySize(width, height)
             .setAlpha(0)
@@ -72,7 +72,7 @@ export default class GameOver06 extends Phaser.Scene {
             .setAlpha(0)
             .setDepth(5)
 
-        const bookOpen = this.add.image(width * 0.5, height * 0.5, 'book-open')
+        const bookOpen = this.add.image(width * 0.5, height * 0.5, 'book-open-06')
             .setOrigin(0.5)
             .setDisplaySize(width, height)
             .setAlpha(0)
