@@ -9,18 +9,23 @@ export default class GameOver04 extends Phaser.Scene {
         this.load.setBaseURL('assets/')
         this.load.image('gameover-bg-04', 'Result/fail-02.jpg')
         this.load.image('gameover-title', 'Result/gameover-title.png')
-        this.load.image('restart', 'Result/restart.png')
-        this.load.image('book-closed', 'Result/book-closed.png')
-        this.load.image('book-open-04', 'Result/book-open-04.png')
     }
 
     create() {
         const width = this.scale.width
         const height = this.scale.height
 
-        const bg = this.add.image(width * 0.5, height * 0.5, 'gameover-bg-04')
-            .setOrigin(0.5)
-            .setDisplaySize(width, height)
+        // 배경 이미지의 원본 비율 유지하면서 너비를 화면에 맞춤
+        const bgTexture = this.textures.get('gameover-bg-04')
+        const bgFrame = bgTexture.get()
+        const bgOriginalWidth = bgFrame.width
+        const bgOriginalHeight = bgFrame.height
+        const bgAspectRatio = bgOriginalHeight / bgOriginalWidth
+        const bgDisplayHeight = width * bgAspectRatio
+
+        const bg = this.add.image(width * 0.5, height, 'gameover-bg-04')
+            .setOrigin(0.5, 1)
+            .setDisplaySize(width, bgDisplayHeight)
             .setAlpha(0)
 
         this.tweens.add({
@@ -50,48 +55,6 @@ export default class GameOver04 extends Phaser.Scene {
             yoyo: true,
             repeat: -1,
             repeatDelay: 150
-        })
-
-        const restartTexture = this.textures.get('restart')
-        const restart = this.add.image(width * 0.5, height * 0.5, 'restart')
-            .setOrigin(0.5)
-            .setDisplaySize(width, height)
-            .setAlpha(0)
-            .setDepth(5)
-
-        this.tweens.add({
-            targets: restart,
-            alpha: 1,
-            duration: 1400,
-            ease: 'Quad.easeOut',
-        })
-
-        const bookClosed = this.add.image(width * 0.5, height * 0.5, 'book-closed')
-            .setOrigin(0.5)
-            .setDisplaySize(width, height)
-            .setAlpha(0)
-            .setDepth(5)
-
-        const bookOpen = this.add.image(width * 0.5, height * 0.5, 'book-open-04')
-            .setOrigin(0.5)
-            .setDisplaySize(width, height)
-            .setAlpha(0)
-            .setDepth(6)
-
-        this.tweens.add({
-            targets: bookClosed,
-            alpha: 1,
-            duration: 700,
-            ease: 'Quad.easeOut'
-        })
-
-        this.time.delayedCall(2000, () => {
-            this.tweens.add({
-                targets: bookOpen,
-                alpha: 1,
-                duration: 600,
-                ease: 'Quad.easeOut'
-            })
         })
 
         // 스페이스바 입력 처리

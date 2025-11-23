@@ -7,18 +7,25 @@ export default class GameOver09 extends Phaser.Scene {
 
     preload() {
         this.load.setBaseURL('assets/')
-        this.load.image('gameover-bg-09', 'Result/win.png')
+        this.load.image('gameover-bg-09', 'Result/win.jpg')
         this.load.image('gameover-title-09', 'Result/win-title.png')
-        this.load.image('restart', 'Result/restart.png')
     }
 
     create() {
         const width = this.scale.width
         const height = this.scale.height
 
-        const bg = this.add.image(width * 0.5, height * 0.5, 'gameover-bg-09')
-            .setOrigin(0.5)
-            .setDisplaySize(width, height)
+        // 배경 이미지의 원본 비율 유지하면서 너비를 화면에 맞춤
+        const bgTexture = this.textures.get('gameover-bg-09')
+        const bgFrame = bgTexture.get()
+        const bgOriginalWidth = bgFrame.width
+        const bgOriginalHeight = bgFrame.height
+        const bgAspectRatio = bgOriginalHeight / bgOriginalWidth
+        const bgDisplayHeight = width * bgAspectRatio
+
+        const bg = this.add.image(width * 0.5, height, 'gameover-bg-09')
+            .setOrigin(0.5, 1)
+            .setDisplaySize(width, bgDisplayHeight)
             .setAlpha(0)
 
         this.tweens.add({
@@ -48,20 +55,6 @@ export default class GameOver09 extends Phaser.Scene {
             yoyo: true,
             repeat: -1,
             repeatDelay: 150
-        })
-
-        const restartTexture = this.textures.get('restart')
-        const restart = this.add.image(width * 0.5, height * 0.7, 'restart')
-            .setOrigin(0.5)
-            .setDisplaySize(width, height)
-            .setAlpha(0)
-            .setDepth(5)
-
-        this.tweens.add({
-            targets: restart,
-            alpha: 1,
-            duration: 1400,
-            ease: 'Quad.easeOut',
         })
 
         // 스페이스바 입력 처리
