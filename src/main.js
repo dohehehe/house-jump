@@ -12,7 +12,7 @@ import GameOver09 from './scenes/gameover-09.js'
 
 
 // 게임 크기 상수 정의
-const GAME_WIDTH = 1440;
+const GAME_WIDTH = 1640;
 const GAME_HEIGHT = 2560;
 
 export default new Phaser.Game(

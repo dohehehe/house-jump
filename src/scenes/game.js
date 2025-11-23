@@ -182,19 +182,35 @@ export default class Game extends Phaser.Scene {
         this.quizScore = 0; // 항상 0으로 리셋
         this.isQuizActive = false;
 
+        // background 이미지의 너비를 GAME_WIDTH에 맞춤
+        const backgroundTexture = this.textures.get('background')
+        const backgroundWidth = backgroundTexture.source[0].width
+        const backgroundScaleX = this.GAME_WIDTH / backgroundWidth
+
         var image = this.add.image(this.GAME_CENTER_X, this.GAME_CENTER_Y, 'background').setScrollFactor(1, 0)
+        image.setScale(backgroundScaleX, 1)
 
         var image2 = this.add.image(this.GAME_CENTER_X, this.GAME_CENTER_Y, 'background').setScrollFactor(1, 0).setDepth(5).setAlpha(0.3);
+        image2.setScale(backgroundScaleX, 1)
 
         //바닥 플랫폼 생성 (고정된 시작점)
         this.groundPlatform = this.physics.add.staticGroup()
         // 플랫폼 높이를 텍스처에서 직접 계산 (화면에 보이지 않게)
         const platformTexture = this.textures.get('ground-start')
         const platformHeight = platformTexture.source[0].height
+        const platformWidth = platformTexture.source[0].width
+
+        // ground_platform의 너비를 GAME_WIDTH에 맞춤
+        const targetWidth = this.GAME_WIDTH // 1640
 
         // 플랫폼의 하단이 화면 하단에 맞도록 Y 위치 계산 (플랫폼 중심 = 화면 하단 - 플랫폼 높이/2 - 추가 오프셋)
         const groundPlatformY = this.GAME_HEIGHT - (platformHeight / 2) - this.GROUND_PLATFORM_OFFSET
         const groundPlatform = this.groundPlatform.create(this.GAME_CENTER_X, groundPlatformY, 'ground-start')
+
+        // GAME_WIDTH에 맞춰서 플랫폼 너비 조정 (비율 유지)
+        const scaleX = targetWidth / platformWidth
+        groundPlatform.setScale(scaleX, 1)
+
         groundPlatform.setData('isGround', true) // 바닥 플랫폼임을 표시
         groundPlatform.setDepth(0) // 캐릭터보다 뒤에 배치
         groundPlatform.body.updateFromGameObject()
