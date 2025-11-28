@@ -39,7 +39,7 @@ const quizzes = [
     correct: 'A'
   },
   {
-    question: '\'선당후곰\'는 무엇을 의미할까요?',
+    question: '\'선당후곰\'은 무엇을 의미할까요?',
     a: '선당근 후곰탕',
     b: '선당첨 후고민',
     correct: 'B'

@@ -15,8 +15,9 @@
 body {
   background-color: white;
   margin: 0;
+  /* overflow: hidden; */
   /* margin-left: 20px; */
-  box-shadow: inset 0 0 10px 10px red, 0 0 10px 10px blue;
+  /* box-shadow: inset 0 0 10px 10px red, 0 0 10px 10px blue; */
 
   /* & canvas {
     transform: rotate(90deg);
