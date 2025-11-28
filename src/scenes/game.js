@@ -321,11 +321,11 @@ export default class Game extends Phaser.Scene {
 
         // 질문 텍스트 UI(초기에는 숨김)
         const qNumberStyle = { color: '#fff', fontSize: this.UI_QUESTION_FONT_SIZE * 0.8, align: 'center', fontStyle: 'bold', fontFamily: 'NanumSquareNeoOTF-Hv', backgroundColor: '#00000088', padding: { x: 10, y: 20 } }
-        this.questionNumberText = this.add.text(this.GAME_CENTER_X, 80, '', qNumberStyle).setScrollFactor(0).setOrigin(0.5, 0.5).setDepth(11)
+        this.questionNumberText = this.add.text(this.GAME_CENTER_X, 580, '', qNumberStyle).setScrollFactor(0).setOrigin(0.5, 0.5).setDepth(11)
         this.questionNumberText.setVisible(false)
 
         const qStyle = { color: '#fff', fontSize: this.UI_QUESTION_FONT_SIZE, align: 'center', fontStyle: 'bold', fontFamily: 'NanumSquareNeoOTF-Bd', backgroundColor: '#00000088', padding: { x: 10, y: 20 } }
-        this.questionText = this.add.text(this.GAME_CENTER_X, 150, '', qStyle).setScrollFactor(0).setOrigin(0.5, 0).setDepth(11).setLineSpacing(25)
+        this.questionText = this.add.text(this.GAME_CENTER_X, 650, '', qStyle).setScrollFactor(0).setOrigin(0.5, 0).setDepth(11).setLineSpacing(25)
         this.questionText.setVisible(false)
 
         this.input.keyboard.once('keyup-SPACE', () => {
